@@ -1,0 +1,31 @@
+server:
+  port: 8888
+
+spring:
+  application:
+    name: eduplus-demo
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+    default-property-inclusion: non_null
+  datasource:
+    url: jdbc:h2:mem:demodb;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+
+# Demo default config
+demo:
+  webhook-secret: ""
+  api-client-id: ""
+  api-client-secret: ""
+  eduplus-base-url: "http://localhost:9080/api"
+  keycloak-base-url: "http://localhost:8080"
+  keycloak-realm: "eduplus"
