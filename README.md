@@ -183,3 +183,15 @@ Header: X-API-Key: {client_id}:{client_secret}
 - **Backend**: Java 21, Spring Boot 3.2, H2 (in-memory), JPA
 - **Frontend**: React 19, TypeScript, Vite, Ant Design 5
 - **Ports**: Backend 8888, Frontend dev 3088
+
+## Vercel Deployment
+
+The GitHub Actions workflow in `.github/workflows/vercel.yml` deploys the frontend app in `frontend/` with the Vercel CLI. Pushes to `main` create Production deployments; pull requests and other branches create Preview deployments.
+
+Configure these GitHub repository secrets before running the workflow:
+
+- `VERCEL_TOKEN`: Vercel access token.
+- `VERCEL_ORG_ID`: Vercel team or user ID.
+- `VERCEL_PROJECT_ID`: Vercel project ID for the frontend.
+
+To get the IDs locally, install the Vercel CLI, run `vercel login`, then run `vercel link` from `frontend/`. Copy `orgId` and `projectId` from `frontend/.vercel/project.json` into GitHub Actions secrets. Do not commit the `.vercel/` directory.

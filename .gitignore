@@ -6,6 +6,8 @@ backend/target/
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
+frontend/.vercel/
+frontend/tsconfig.tsbuildinfo
 
 # Rust / Cargo
 webhook-receiver-rust/target/
