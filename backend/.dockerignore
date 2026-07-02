@@ -1,0 +1,5 @@
+target/
+.mvn/wrapper/maven-wrapper.jar
+*.log
+.DS_Store
+Thumbs.db

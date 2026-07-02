@@ -195,3 +195,14 @@ Configure these GitHub repository secrets before running the workflow:
 - `VERCEL_PROJECT_ID`: Vercel project ID for the frontend.
 
 To get the IDs locally, install the Vercel CLI, run `vercel login`, then run `vercel link` from `frontend/`. Copy `orgId` and `projectId` from `frontend/.vercel/project.json` into GitHub Actions secrets. Do not commit the `.vercel/` directory.
+
+## Backend Container Image
+
+The GitHub Actions workflow in `.github/workflows/backend-image.yml` builds the Spring Boot backend Docker image from `backend/Dockerfile` and pushes it to GitHub Container Registry on changes to `backend/` or manual runs.
+
+Published tags:
+
+- `ghcr.io/wincax88/widget-demo-backend:latest`
+- `ghcr.io/wincax88/widget-demo-backend:<commit-sha>`
+
+Use `ghcr.io/wincax88/widget-demo-backend:latest` in Sealos App Launchpad with container port `8888` and public access enabled. If the GHCR package is private, configure image pull credentials in Sealos or make the package public.
