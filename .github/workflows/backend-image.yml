@@ -15,6 +15,7 @@ permissions:
 
 env:
   IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/widget-demo-backend
+  REPOSITORY_IMAGE_NAME: ghcr.io/${{ github.repository }}
 
 jobs:
   build-and-push:
@@ -44,5 +45,10 @@ jobs:
           tags: |
             ${{ env.IMAGE_NAME }}:latest
             ${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.REPOSITORY_IMAGE_NAME }}:backend-latest
+            ${{ env.REPOSITORY_IMAGE_NAME }}:backend-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.description=EduPlus demo backend
           cache-from: type=gha
           cache-to: type=gha,mode=max

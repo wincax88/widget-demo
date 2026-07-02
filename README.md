@@ -204,5 +204,7 @@ Published tags:
 
 - `ghcr.io/wincax88/widget-demo-backend:latest`
 - `ghcr.io/wincax88/widget-demo-backend:<commit-sha>`
+- `ghcr.io/wincax88/widget-demo:backend-latest`
+- `ghcr.io/wincax88/widget-demo:backend-<commit-sha>`
 
-Use `ghcr.io/wincax88/widget-demo-backend:latest` in Sealos App Launchpad with container port `8888` and public access enabled. If the GHCR package is private, configure image pull credentials in Sealos or make the package public.
+Use `ghcr.io/wincax88/widget-demo:backend-latest` in Sealos App Launchpad with container port `8888` and public access enabled. If the GHCR package is private, configure image pull credentials in Sealos or make the package public.
