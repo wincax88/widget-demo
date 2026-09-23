@@ -20,4 +20,11 @@ describe('CredentialCryptoService', () => {
 
     expect(() => service.decrypt(encrypted)).toThrow()
   })
+
+  it('authenticates optional associated context data', () => {
+    const encrypted = service.encrypt('client-secret', Buffer.from('tenant-a'))
+
+    expect(service.decrypt(encrypted, Buffer.from('tenant-a'))).toBe('client-secret')
+    expect(() => service.decrypt(encrypted, Buffer.from('tenant-b'))).toThrow()
+  })
 })

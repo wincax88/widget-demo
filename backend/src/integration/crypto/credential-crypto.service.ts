@@ -19,15 +19,17 @@ export class CredentialCryptoService {
     }
   }
 
-  encrypt(value: string): EncryptedCredential {
+  encrypt(value: string, associatedData?: Uint8Array): EncryptedCredential {
     const iv = randomBytes(12)
     const cipher = createCipheriv('aes-256-gcm', this.key, iv)
+    if (associatedData) cipher.setAAD(Buffer.from(associatedData))
     const ciphertext = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()])
     return { ciphertext, iv, authenticationTag: cipher.getAuthTag() }
   }
 
-  decrypt(value: EncryptedCredential): string {
+  decrypt(value: EncryptedCredential, associatedData?: Uint8Array): string {
     const decipher = createDecipheriv('aes-256-gcm', this.key, Buffer.from(value.iv))
+    if (associatedData) decipher.setAAD(Buffer.from(associatedData))
     decipher.setAuthTag(Buffer.from(value.authenticationTag))
     return Buffer.concat([decipher.update(Buffer.from(value.ciphertext)), decipher.final()]).toString(
       'utf8',
