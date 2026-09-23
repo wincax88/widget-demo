@@ -43,10 +43,13 @@
       "ts"
     ],
     "rootDir": "src",
-    "testRegex": ".*\\.spec\\.ts$",
+    "testRegex": ".*(\\.spec|\\.e2e-spec)\\.ts$",
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
+    "setupFiles": [
+      "<rootDir>/test/setup-env.ts"
+    ],
     "collectCoverageFrom": [
       "**/*.(t|j)s"
     ],
