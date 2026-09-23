@@ -6,6 +6,8 @@ import request = require('supertest')
 import { SessionGuard } from '../auth/session.guard'
 import { ExamsController } from './exams.controller'
 import { ExamsService } from './exams.service'
+import { ScoreEntryService } from './score-entry.service'
+import { CsvImportService } from './csv-import.service'
 
 describe('examination HTTP lifecycle', () => {
   const service = {
@@ -23,6 +25,8 @@ describe('examination HTTP lifecycle', () => {
       controllers: [ExamsController],
       providers: [
         { provide: ExamsService, useValue: service },
+        { provide: ScoreEntryService, useValue: { save: jest.fn() } },
+        { provide: CsvImportService, useValue: { import: jest.fn() } },
       ],
     })
     const module = await builder.overrideGuard(SessionGuard).useValue({

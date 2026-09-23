@@ -2,13 +2,20 @@ import { Body, Controller, Get, Param, Patch, Post, Req, UnauthorizedException, 
 import { AuthenticatedRequest, SessionGuard } from '../auth/session.guard'
 import { CreateExamDto } from './dto/create-exam.dto'
 import { UpdateExamDto } from './dto/update-exam.dto'
+import { ImportScoresDto, SaveScoreGridDto } from './dto/save-score-grid.dto'
+import { CsvImportService } from './csv-import.service'
 import { ActorContext } from './exam.types'
 import { ExamsService } from './exams.service'
+import { ScoreEntryService } from './score-entry.service'
 
 @Controller('exams')
 @UseGuards(SessionGuard)
 export class ExamsController {
-  constructor(private readonly exams: ExamsService) {}
+  constructor(
+    private readonly exams: ExamsService,
+    private readonly scoreEntry: ScoreEntryService,
+    private readonly csvImport: CsvImportService,
+  ) {}
 
   @Post()
   create(@Req() request: AuthenticatedRequest, @Body() body: CreateExamDto) {
@@ -38,6 +45,16 @@ export class ExamsController {
   @Post(':id/withdraw')
   withdraw(@Req() request: AuthenticatedRequest, @Param('id') id: string) {
     return this.exams.withdraw(this.actor(request), id)
+  }
+
+  @Post(':id/scores')
+  saveScores(@Req() request: AuthenticatedRequest, @Param('id') id: string, @Body() body: SaveScoreGridDto) {
+    return this.scoreEntry.save(this.actor(request), id, body.cells)
+  }
+
+  @Post(':id/imports')
+  importScores(@Req() request: AuthenticatedRequest, @Param('id') id: string, @Body() body: ImportScoresDto) {
+    return this.csvImport.import(this.actor(request), id, body.filename, body.csv)
   }
 
   private actor(request: AuthenticatedRequest): ActorContext {
