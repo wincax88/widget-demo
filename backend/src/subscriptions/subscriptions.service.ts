@@ -15,6 +15,9 @@ interface WebhookPayload {
     client_id: string
     client_secret: string
     auth_server_url?: string
+    authorization_endpoint?: string
+    token_endpoint?: string
+    jwks_uri?: string
   }
   credential?: {
     client_id?: string
@@ -100,12 +103,18 @@ export class SubscriptionsService {
           eduplusTenantId: String(payload.tenant.id),
           name: payload.tenant.name,
           issuerUrl: oauth.auth_server_url,
+          authorizationEndpoint: oauth.authorization_endpoint,
+          tokenEndpoint: oauth.token_endpoint,
+          jwksUri: oauth.jwks_uri,
           status: TenantStatus.ACTIVE,
         },
         update: {
           eduplusTenantId: String(payload.tenant.id),
           name: payload.tenant.name,
           issuerUrl: oauth.auth_server_url,
+          authorizationEndpoint: oauth.authorization_endpoint,
+          tokenEndpoint: oauth.token_endpoint,
+          jwksUri: oauth.jwks_uri,
           status: TenantStatus.ACTIVE,
         },
       })

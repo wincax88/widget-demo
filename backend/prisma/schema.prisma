@@ -32,23 +32,26 @@ enum SyncStatus {
 }
 
 model Tenant {
-  id                  String                  @id @default(uuid())
-  code                String                  @unique
-  eduplusTenantId     String?                 @unique @map("eduplus_tenant_id")
-  name                String
-  issuerUrl           String?                 @map("issuer_url")
-  status              TenantStatus            @default(ACTIVE)
-  createdAt           DateTime                @default(now()) @map("created_at")
-  updatedAt           DateTime                @updatedAt @map("updated_at")
-  credentials         TenantCredential[]
-  webhookReceipts     WebhookReceipt[]
-  appSessions         AppSession[]
-  directorySyncRuns   DirectorySyncRun[]
-  people              Person[]
-  classrooms          Classroom[]
-  courses             Course[]
-  teachingAssignments TeachingAssignment[]
-  parentStudentLinks  ParentStudentRelation[]
+  id                    String                  @id @default(uuid())
+  code                  String                  @unique
+  eduplusTenantId       String?                 @unique @map("eduplus_tenant_id")
+  name                  String
+  issuerUrl             String?                 @map("issuer_url")
+  authorizationEndpoint String?                 @map("authorization_endpoint")
+  tokenEndpoint         String?                 @map("token_endpoint")
+  jwksUri               String?                 @map("jwks_uri")
+  status                TenantStatus            @default(ACTIVE)
+  createdAt             DateTime                @default(now()) @map("created_at")
+  updatedAt             DateTime                @updatedAt @map("updated_at")
+  credentials           TenantCredential[]
+  webhookReceipts       WebhookReceipt[]
+  appSessions           AppSession[]
+  directorySyncRuns     DirectorySyncRun[]
+  people                Person[]
+  classrooms            Classroom[]
+  courses               Course[]
+  teachingAssignments   TeachingAssignment[]
+  parentStudentLinks    ParentStudentRelation[]
 
   @@map("tenants")
 }
