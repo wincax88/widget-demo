@@ -9,6 +9,7 @@ import { PrismaModule } from './prisma/prisma.module'
 import { SecurityModule } from './security/security.module'
 import { ResultsModule } from './results/results.module'
 import { SubscriptionsModule } from './subscriptions/subscriptions.module'
+import { WidgetsModule } from './widgets/widgets.module'
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { SubscriptionsModule } from './subscriptions/subscriptions.module'
     DirectorySyncModule,
     ExamsModule,
     ResultsModule,
+    WidgetsModule,
   ],
   controllers: [HealthController],
 })

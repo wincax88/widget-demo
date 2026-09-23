@@ -1,4 +1,4 @@
-import { ValidationPipe } from '@nestjs/common'
+import { RequestMethod, ValidationPipe } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { NestFactory } from '@nestjs/core'
 import { NestExpressApplication } from '@nestjs/platform-express'
@@ -43,7 +43,9 @@ export function configureApp(app: NestExpressApplication) {
   app.use(json({ limit: '1mb', verify: captureWebhookBody }))
   app.use(urlencoded({ extended: true, limit: '1mb' }))
   app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }))
-  app.setGlobalPrefix('api')
+  app.setGlobalPrefix('api', {
+    exclude: [{ path: 'v1/open/{*path}', method: RequestMethod.ALL }],
+  })
   return app
 }
 
