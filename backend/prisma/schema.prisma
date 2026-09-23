@@ -1,0 +1,216 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+  REVOKED
+}
+
+enum CredentialKind {
+  OAUTH_CLIENT_SECRET
+  WEBHOOK_SECRET
+}
+
+enum PersonType {
+  STAFF
+  TEACHER
+  STUDENT
+  PARENT
+}
+
+enum SyncStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+model Tenant {
+  id                  String                  @id @default(uuid())
+  code                String                  @unique
+  eduplusTenantId     String?                 @unique @map("eduplus_tenant_id")
+  name                String
+  issuerUrl           String?                 @map("issuer_url")
+  status              TenantStatus            @default(ACTIVE)
+  createdAt           DateTime                @default(now()) @map("created_at")
+  updatedAt           DateTime                @updatedAt @map("updated_at")
+  credentials         TenantCredential[]
+  webhookReceipts     WebhookReceipt[]
+  appSessions         AppSession[]
+  directorySyncRuns   DirectorySyncRun[]
+  people              Person[]
+  classrooms          Classroom[]
+  courses             Course[]
+  teachingAssignments TeachingAssignment[]
+  parentStudentLinks  ParentStudentRelation[]
+
+  @@map("tenants")
+}
+
+model TenantCredential {
+  id                String         @id @default(uuid())
+  tenantId          String         @map("tenant_id")
+  kind              CredentialKind
+  clientId          String?        @map("client_id")
+  ciphertext        Bytes
+  iv                Bytes
+  authenticationTag Bytes          @map("authentication_tag")
+  keyVersion        Int            @default(1) @map("key_version")
+  revokedAt         DateTime?      @map("revoked_at")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+  tenant            Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, kind])
+  @@index([tenantId, revokedAt])
+  @@map("tenant_credentials")
+}
+
+model WebhookReceipt {
+  eventId     String   @id @map("event_id")
+  tenantId    String?  @map("tenant_id")
+  eventName   String   @map("event_name")
+  payloadHash String   @map("payload_hash")
+  receivedAt  DateTime @default(now()) @map("received_at")
+  tenant      Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, receivedAt])
+  @@map("webhook_receipts")
+}
+
+model AppSession {
+  id                       String     @id @default(uuid())
+  tenantId                 String     @map("tenant_id")
+  personId                 String?    @map("person_id")
+  identityId               String     @map("identity_id")
+  identityType             PersonType @map("identity_type")
+  tokenHash                String     @unique @map("token_hash")
+  refreshCiphertext        Bytes?     @map("refresh_ciphertext")
+  refreshIv                Bytes?     @map("refresh_iv")
+  refreshAuthenticationTag Bytes?     @map("refresh_authentication_tag")
+  expiresAt                DateTime   @map("expires_at")
+  revokedAt                DateTime?  @map("revoked_at")
+  createdAt                DateTime   @default(now()) @map("created_at")
+  updatedAt                DateTime   @updatedAt @map("updated_at")
+  tenant                   Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  person                   Person?    @relation(fields: [personId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, identityId, revokedAt])
+  @@map("app_sessions")
+}
+
+model DirectorySyncRun {
+  id          String     @id @default(uuid())
+  tenantId    String     @map("tenant_id")
+  requestedBy String     @map("requested_by")
+  status      SyncStatus @default(RUNNING)
+  counts      Json?
+  errorCode   String?    @map("error_code")
+  startedAt   DateTime   @default(now()) @map("started_at")
+  finishedAt  DateTime?  @map("finished_at")
+  tenant      Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, startedAt])
+  @@map("directory_sync_runs")
+}
+
+model Person {
+  id                  String                  @id @default(uuid())
+  tenantId            String                  @map("tenant_id")
+  eduplusId           String                  @map("eduplus_id")
+  type                PersonType
+  name                String
+  email               String?
+  active              Boolean                 @default(true)
+  createdAt           DateTime                @default(now()) @map("created_at")
+  updatedAt           DateTime                @updatedAt @map("updated_at")
+  tenant              Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  appSessions         AppSession[]
+  teachingAssignments TeachingAssignment[]
+  parentRelations     ParentStudentRelation[] @relation("ParentPerson")
+  studentRelations    ParentStudentRelation[] @relation("StudentPerson")
+
+  @@unique([tenantId, eduplusId])
+  @@index([tenantId, type, active])
+  @@map("people")
+}
+
+model Classroom {
+  id          String               @id @default(uuid())
+  tenantId    String               @map("tenant_id")
+  eduplusId   String               @map("eduplus_id")
+  name        String
+  gradeName   String?              @map("grade_name")
+  active      Boolean              @default(true)
+  createdAt   DateTime             @default(now()) @map("created_at")
+  updatedAt   DateTime             @updatedAt @map("updated_at")
+  tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assignments TeachingAssignment[]
+
+  @@unique([tenantId, eduplusId])
+  @@index([tenantId, active])
+  @@map("classrooms")
+}
+
+model Course {
+  id          String               @id @default(uuid())
+  tenantId    String               @map("tenant_id")
+  eduplusId   String               @map("eduplus_id")
+  name        String
+  active      Boolean              @default(true)
+  createdAt   DateTime             @default(now()) @map("created_at")
+  updatedAt   DateTime             @updatedAt @map("updated_at")
+  tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assignments TeachingAssignment[]
+
+  @@unique([tenantId, eduplusId])
+  @@index([tenantId, active])
+  @@map("courses")
+}
+
+model TeachingAssignment {
+  id          String    @id @default(uuid())
+  tenantId    String    @map("tenant_id")
+  eduplusId   String    @map("eduplus_id")
+  teacherId   String    @map("teacher_id")
+  classroomId String    @map("classroom_id")
+  courseId    String    @map("course_id")
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  teacher     Person    @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  classroom   Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  course      Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, eduplusId])
+  @@index([tenantId, teacherId, active])
+  @@index([tenantId, classroomId, courseId])
+  @@map("teaching_assignments")
+}
+
+model ParentStudentRelation {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  eduplusId String   @map("eduplus_id")
+  parentId  String   @map("parent_id")
+  studentId String   @map("student_id")
+  relation  String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  parent    Person   @relation("ParentPerson", fields: [parentId], references: [id], onDelete: Cascade)
+  student   Person   @relation("StudentPerson", fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, eduplusId])
+  @@unique([tenantId, parentId, studentId])
+  @@index([tenantId, studentId, active])
+  @@map("parent_student_relations")
+}
