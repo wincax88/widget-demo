@@ -23,6 +23,13 @@ describeWithDatabase('DirectorySyncService', () => {
         teaching_status: 'active',
       }),
     ],
+    student_class_relation: [
+      record('student_class_relation', 'membership-1', {
+        student_external_id: 'student-1',
+        class_external_id: 'class-1',
+        enrollment_status: 'active',
+      }),
+    ],
     parent_student_relation: [
       record('parent_student_relation', 'relation-1', {
         parent_external_id: 'parent-1',
@@ -70,6 +77,7 @@ describeWithDatabase('DirectorySyncService', () => {
     expect(await prisma.classroom.count({ where: { tenantId } })).toBe(1)
     expect(await prisma.course.count({ where: { tenantId } })).toBe(1)
     expect(await prisma.teachingAssignment.count({ where: { tenantId } })).toBe(1)
+    expect(await prisma.studentClassRelation.count({ where: { tenantId } })).toBe(1)
     expect(await prisma.parentStudentRelation.count({ where: { tenantId } })).toBe(1)
   })
 

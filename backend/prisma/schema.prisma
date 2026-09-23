@@ -69,6 +69,7 @@ model Tenant {
   scores                Score[]
   scoreImports          ScoreImport[]
   scoreImportErrors     ScoreImportError[]
+  studentClassLinks     StudentClassRelation[]
 
   @@map("tenants")
 }
@@ -159,6 +160,7 @@ model Person {
   scores              Score[]                 @relation("ScoreStudent")
   gradedScores        Score[]                 @relation("ScoreGrader")
   scoreImports        ScoreImport[]           @relation("ScoreImportCreator")
+  classMemberships    StudentClassRelation[]  @relation("StudentClassPerson")
 
   @@unique([tenantId, eduplusId])
   @@unique([tenantId, id])
@@ -167,17 +169,18 @@ model Person {
 }
 
 model Classroom {
-  id          String               @id @default(uuid())
-  tenantId    String               @map("tenant_id")
-  eduplusId   String               @map("eduplus_id")
+  id          String                 @id @default(uuid())
+  tenantId    String                 @map("tenant_id")
+  eduplusId   String                 @map("eduplus_id")
   name        String
-  gradeName   String?              @map("grade_name")
-  active      Boolean              @default(true)
-  createdAt   DateTime             @default(now()) @map("created_at")
-  updatedAt   DateTime             @updatedAt @map("updated_at")
-  tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  gradeName   String?                @map("grade_name")
+  active      Boolean                @default(true)
+  createdAt   DateTime               @default(now()) @map("created_at")
+  updatedAt   DateTime               @updatedAt @map("updated_at")
+  tenant      Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   assignments TeachingAssignment[]
   exams       Exam[]
+  students    StudentClassRelation[]
 
   @@unique([tenantId, eduplusId])
   @@unique([tenantId, id])
@@ -244,6 +247,25 @@ model ParentStudentRelation {
   @@unique([tenantId, parentId, studentId])
   @@index([tenantId, studentId, active])
   @@map("parent_student_relations")
+}
+
+model StudentClassRelation {
+  id          String    @id @default(uuid())
+  tenantId    String    @map("tenant_id")
+  eduplusId   String    @map("eduplus_id")
+  studentId   String    @map("student_id")
+  classroomId String    @map("classroom_id")
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  student     Person    @relation("StudentClassPerson", fields: [tenantId, studentId], references: [tenantId, id], onDelete: Cascade)
+  classroom   Classroom @relation(fields: [tenantId, classroomId], references: [tenantId, id], onDelete: Cascade)
+
+  @@unique([tenantId, eduplusId])
+  @@unique([tenantId, studentId, classroomId])
+  @@index([tenantId, classroomId, active])
+  @@map("student_class_relations")
 }
 
 model Exam {

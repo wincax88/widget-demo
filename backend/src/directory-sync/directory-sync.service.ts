@@ -11,6 +11,7 @@ const ENTITY_TYPES = [
   'class',
   'course',
   'teacher_teaching_assignment',
+  'student_class_relation',
   'parent_student_relation',
 ] as const
 
@@ -72,6 +73,10 @@ export class DirectorySyncService {
       await this.syncAssignments(
         session.tenantId,
         records.get('teacher_teaching_assignment')!,
+      )
+      await this.syncStudentClasses(
+        session.tenantId,
+        records.get('student_class_relation')!,
       )
       await this.syncParentRelations(
         session.tenantId,
@@ -245,6 +250,40 @@ export class DirectorySyncService {
             studentId: student.id,
             relation: this.text(record.fields.relation_type),
             active: this.isActive(record),
+          },
+        })
+      }
+    })
+  }
+
+  private async syncStudentClasses(tenantId: string, records: MasterDataRecord[]) {
+    const [people, classrooms] = await Promise.all([
+      this.prisma.person.findMany({ where: { tenantId } }),
+      this.prisma.classroom.findMany({ where: { tenantId } }),
+    ])
+    const peopleByExternalId = new Map(people.map((item) => [item.eduplusId, item]))
+    const classesByExternalId = new Map(classrooms.map((item) => [item.eduplusId, item]))
+    await this.prisma.$transaction(async (transaction) => {
+      for (const record of records) {
+        const student = peopleByExternalId.get(this.text(record.fields.student_external_id) ?? '')
+        const classroom = classesByExternalId.get(this.text(record.fields.class_external_id) ?? '')
+        if (!student || student.type !== PersonType.STUDENT || !classroom) {
+          throw new BadGatewayException('EduPlus student class relation references unknown master data')
+        }
+        const eduplusId = this.recordId(record)
+        await transaction.studentClassRelation.upsert({
+          where: { tenantId_eduplusId: { tenantId, eduplusId } },
+          create: {
+            tenantId,
+            eduplusId,
+            studentId: student.id,
+            classroomId: classroom.id,
+            active: this.isActive(record, 'enrollment_status'),
+          },
+          update: {
+            studentId: student.id,
+            classroomId: classroom.id,
+            active: this.isActive(record, 'enrollment_status'),
           },
         })
       }
