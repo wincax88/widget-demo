@@ -34,6 +34,7 @@ describeWithDatabase('application authentication', () => {
       identityId: 'teacher-1',
       identityType: PersonType.TEACHER,
       clientId: `client-${tenantCode}`,
+      handoffType: 'app_launch',
     }),
   }
   let app: INestApplication
@@ -105,6 +106,7 @@ describeWithDatabase('application authentication', () => {
       identityId: 'teacher-1',
       identityType: PersonType.TEACHER,
       clientId: `client-${tenantCode}`,
+      handoffType: 'app_launch',
     })
 
     await request(app.getHttpServer())

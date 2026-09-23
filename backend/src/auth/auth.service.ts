@@ -214,7 +214,7 @@ export class AuthService {
     if (
       identity.tenantId !== context.tenant.eduplusTenantId ||
       identity.clientId !== context.credential.clientId ||
-      (requireHandoff && identity.handoffType && identity.handoffType !== 'app_launch')
+      (requireHandoff && identity.handoffType !== 'app_launch')
     ) {
       throw new UnauthorizedException('OIDC token context does not match the selected tenant')
     }

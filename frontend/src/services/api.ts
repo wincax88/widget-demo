@@ -1,51 +1,65 @@
-import type {
-  DemoConfig,
-  WebhookEvent,
-  ApiTestRequest,
-  ApiTestResponse,
-  OAuthTokenResponse,
-  OAuthCredentials,
-} from '../types'
-
 const BASE = '/api'
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
+export interface SessionIdentity {
+  id: string
+  type: 'STAFF' | 'TEACHER' | 'STUDENT' | 'PARENT'
+  name?: string
+}
+
+export type SessionResponse =
+  | { authenticated: false }
+  | {
+      authenticated: true
+      tenant: { code: string; name: string }
+      identity: SessionIdentity
+    }
+
+export interface SyncRun {
+  id: string
+  status: 'RUNNING' | 'SUCCEEDED' | 'FAILED'
+  counts?: Record<string, number>
+  startedAt: string
+  finishedAt?: string
+}
+
+export class ApiError extends Error {
+  constructor(readonly status: number, message: string) {
+    super(message)
+  }
+}
+
+export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const headers = new Headers(options.headers)
+  if (options.body && !headers.has('content-type')) headers.set('content-type', 'application/json')
+  const response = await fetch(`${BASE}${path}`, {
     ...options,
+    headers,
+    credentials: 'include',
   })
-  return res.json()
+  const contentType = response.headers.get('content-type') ?? ''
+  const body = contentType.includes('application/json') ? await response.json() : await response.text()
+  if (!response.ok) {
+    const message =
+      typeof body === 'object' && body && 'message' in body
+        ? String((body as { message: unknown }).message)
+        : `Request failed with status ${response.status}`
+    throw new ApiError(response.status, message)
+  }
+  return body as T
 }
 
 export const api = {
-  getConfig: () => request<DemoConfig>('/config'),
-
-  updateConfig: (config: DemoConfig) =>
-    request<{ success: boolean }>('/config', {
-      method: 'PUT',
-      body: JSON.stringify(config),
-    }),
-
-  getEvents: () => request<WebhookEvent[]>('/events'),
-
-  clearEvents: () =>
-    request<{ success: boolean }>('/events', { method: 'DELETE' }),
-
-  getLatestOAuth: () => request<OAuthCredentials>('/events/latest-oauth'),
-
-  testApiCall: (req: ApiTestRequest) =>
-    request<ApiTestResponse>('/test/api-call', {
+  session: () => request<SessionResponse>('/session'),
+  handoff: (input: { tenant_code: string; code: string; state?: string }) =>
+    request<{ authenticated: true }>('/auth/handoff', {
       method: 'POST',
-      body: JSON.stringify(req),
+      body: JSON.stringify(input),
     }),
-
-  testOAuthToken: (req: {
-    client_id: string
-    client_secret: string
-    token_endpoint: string
-  }) =>
-    request<OAuthTokenResponse>('/test/oauth-token', {
-      method: 'POST',
-      body: JSON.stringify(req),
-    }),
+  logout: () => request<{ authenticated: false }>('/auth/logout', { method: 'POST' }),
+  startDirectorySync: () =>
+    request<{ run_id: string; status: string; counts: Record<string, number> }>(
+      '/directory-sync',
+      { method: 'POST' },
+    ),
+  listDirectorySyncRuns: () => request<SyncRun[]>('/directory-sync/runs'),
 }

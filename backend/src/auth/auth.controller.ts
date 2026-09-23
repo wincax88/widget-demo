@@ -9,7 +9,7 @@ import {
   Req,
   Res,
 } from '@nestjs/common'
-import { IsNotEmpty, IsString } from 'class-validator'
+import { IsNotEmpty, IsOptional, IsString } from 'class-validator'
 import { Request, Response } from 'express'
 import { AuthService } from './auth.service'
 import { SESSION_COOKIE } from './session.guard'
@@ -22,6 +22,10 @@ class HandoffRequest {
   @IsString()
   @IsNotEmpty()
   code!: string
+
+  @IsOptional()
+  @IsString()
+  state?: string
 }
 
 const sessionCookieOptions = {

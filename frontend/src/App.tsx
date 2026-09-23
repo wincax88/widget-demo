@@ -1,54 +1,62 @@
-import { Routes, Route, Link, useLocation } from 'react-router-dom'
-import { Layout, Menu } from 'antd'
-import {
-  SettingOutlined,
-  BellOutlined,
-  ApiOutlined,
-  SafetyOutlined,
-} from '@ant-design/icons'
-import EventsPage from './pages/EventsPage'
-import ConfigPage from './pages/ConfigPage'
-import ApiTesterPage from './pages/ApiTesterPage'
-import OAuthPage from './pages/OAuthPage'
+import { Button, Card, Result, Spin, Typography } from 'antd'
+import { Navigate, Route, Routes } from 'react-router-dom'
+import LaunchPage from './auth/LaunchPage'
+import { SessionProvider, useSession } from './auth/SessionProvider'
+import AppShell from './layout/AppShell'
+import SyncPage from './pages/SyncPage'
 
-const { Header, Content, Sider } = Layout
-
-const menuItems = [
-  { key: '/', icon: <BellOutlined />, label: <Link to="/">Webhook Events</Link> },
-  { key: '/api-test', icon: <ApiOutlined />, label: <Link to="/api-test">API Tester</Link> },
-  { key: '/oauth', icon: <SafetyOutlined />, label: <Link to="/oauth">OAuth Test</Link> },
-  { key: '/config', icon: <SettingOutlined />, label: <Link to="/config">Config</Link> },
-]
+function ApplicationRoutes() {
+  const { session, loading, error } = useSession()
+  if (loading) return <Spin fullscreen tip="正在加载应用会话" />
+  if (!session?.authenticated) {
+    return (
+      <Routes>
+        <Route path="/launch/:tenantCode" element={<LaunchPage />} />
+        <Route
+          path="*"
+          element={
+            <Result
+              status={error ? 'warning' : 'info'}
+              title="考试成绩"
+              subTitle={error ?? '请从 EduPlus 工作台进入，或使用学校对应的 EduPlus 登录入口。'}
+              extra={
+                <Button type="primary" href="/launch">
+                  使用 EduPlus 登录
+                </Button>
+              }
+            />
+          }
+        />
+      </Routes>
+    )
+  }
+  const canSync = session.identity.type === 'TEACHER' || session.identity.type === 'STAFF'
+  return (
+    <AppShell>
+      <Routes>
+        <Route
+          path="/"
+          element={
+            <Card>
+              <Typography.Title level={2}>考试成绩</Typography.Title>
+              <Typography.Paragraph type="secondary">
+                当前身份：{session.identity.name ?? session.identity.id}
+              </Typography.Paragraph>
+            </Card>
+          }
+        />
+        <Route path="/launch/:tenantCode" element={<Navigate to="/" replace />} />
+        <Route path="/sync" element={canSync ? <SyncPage /> : <Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </AppShell>
+  )
+}
 
 export default function App() {
-  const location = useLocation()
-
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <Sider breakpoint="lg" collapsedWidth="0">
-        <div style={{ height: 32, margin: 16, color: '#fff', fontSize: 16, fontWeight: 600, textAlign: 'center' }}>
-          EduPlus Demo
-        </div>
-        <Menu
-          theme="dark"
-          mode="inline"
-          selectedKeys={[location.pathname]}
-          items={menuItems}
-        />
-      </Sider>
-      <Layout>
-        <Header style={{ padding: '0 24px', background: '#fff', fontSize: 18, fontWeight: 500 }}>
-          EduPlus Third-Party Integration Demo
-        </Header>
-        <Content style={{ margin: 24 }}>
-          <Routes>
-            <Route path="/" element={<EventsPage />} />
-            <Route path="/api-test" element={<ApiTesterPage />} />
-            <Route path="/oauth" element={<OAuthPage />} />
-            <Route path="/config" element={<ConfigPage />} />
-          </Routes>
-        </Content>
-      </Layout>
-    </Layout>
+    <SessionProvider>
+      <ApplicationRoutes />
+    </SessionProvider>
   )
 }
