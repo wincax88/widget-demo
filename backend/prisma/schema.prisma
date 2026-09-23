@@ -31,6 +31,18 @@ enum SyncStatus {
   FAILED
 }
 
+enum ExamStatus {
+  DRAFT
+  PUBLISHED
+  WITHDRAWN
+}
+
+enum ImportStatus {
+  VALIDATING
+  FAILED
+  APPLIED
+}
+
 model Tenant {
   id                    String                  @id @default(uuid())
   code                  String                  @unique
@@ -52,6 +64,11 @@ model Tenant {
   courses               Course[]
   teachingAssignments   TeachingAssignment[]
   parentStudentLinks    ParentStudentRelation[]
+  exams                 Exam[]
+  examSubjects          ExamSubject[]
+  scores                Score[]
+  scoreImports          ScoreImport[]
+  scoreImportErrors     ScoreImportError[]
 
   @@map("tenants")
 }
@@ -138,8 +155,13 @@ model Person {
   teachingAssignments TeachingAssignment[]
   parentRelations     ParentStudentRelation[] @relation("ParentPerson")
   studentRelations    ParentStudentRelation[] @relation("StudentPerson")
+  createdExams        Exam[]                  @relation("ExamCreator")
+  scores              Score[]                 @relation("ScoreStudent")
+  gradedScores        Score[]                 @relation("ScoreGrader")
+  scoreImports        ScoreImport[]           @relation("ScoreImportCreator")
 
   @@unique([tenantId, eduplusId])
+  @@unique([tenantId, id])
   @@index([tenantId, type, active])
   @@map("people")
 }
@@ -155,25 +177,29 @@ model Classroom {
   updatedAt   DateTime             @updatedAt @map("updated_at")
   tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   assignments TeachingAssignment[]
+  exams       Exam[]
 
   @@unique([tenantId, eduplusId])
+  @@unique([tenantId, id])
   @@index([tenantId, active])
   @@map("classrooms")
 }
 
 model Course {
-  id          String               @id @default(uuid())
-  tenantId    String               @map("tenant_id")
-  eduplusId   String               @map("eduplus_id")
-  code        String?
-  name        String
-  active      Boolean              @default(true)
-  createdAt   DateTime             @default(now()) @map("created_at")
-  updatedAt   DateTime             @updatedAt @map("updated_at")
-  tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  assignments TeachingAssignment[]
+  id           String               @id @default(uuid())
+  tenantId     String               @map("tenant_id")
+  eduplusId    String               @map("eduplus_id")
+  code         String?
+  name         String
+  active       Boolean              @default(true)
+  createdAt    DateTime             @default(now()) @map("created_at")
+  updatedAt    DateTime             @updatedAt @map("updated_at")
+  tenant       Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assignments  TeachingAssignment[]
+  examSubjects ExamSubject[]
 
   @@unique([tenantId, eduplusId])
+  @@unique([tenantId, id])
   @@unique([tenantId, code])
   @@index([tenantId, active])
   @@map("courses")
@@ -218,4 +244,110 @@ model ParentStudentRelation {
   @@unique([tenantId, parentId, studentId])
   @@index([tenantId, studentId, active])
   @@map("parent_student_relations")
+}
+
+model Exam {
+  id          String        @id @default(uuid())
+  tenantId    String        @map("tenant_id")
+  creatorId   String        @map("creator_id")
+  classroomId String        @map("classroom_id")
+  title       String
+  type        String
+  examDate    DateTime      @map("exam_date")
+  status      ExamStatus    @default(DRAFT)
+  publishedAt DateTime?     @map("published_at")
+  withdrawnAt DateTime?     @map("withdrawn_at")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  tenant      Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  creator     Person        @relation("ExamCreator", fields: [tenantId, creatorId], references: [tenantId, id], onDelete: Restrict)
+  classroom   Classroom     @relation(fields: [tenantId, classroomId], references: [tenantId, id], onDelete: Restrict)
+  subjects    ExamSubject[]
+  scores      Score[]
+  imports     ScoreImport[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, status, examDate])
+  @@index([tenantId, classroomId, examDate])
+  @@map("exams")
+}
+
+model ExamSubject {
+  id           String   @id @default(uuid())
+  tenantId     String   @map("tenant_id")
+  examId       String   @map("exam_id")
+  courseId     String   @map("course_id")
+  maximumScore Decimal  @map("maximum_score") @db.Decimal(8, 2)
+  displayOrder Int      @default(0) @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  exam         Exam     @relation(fields: [tenantId, examId], references: [tenantId, id], onDelete: Cascade)
+  course       Course   @relation(fields: [tenantId, courseId], references: [tenantId, id], onDelete: Restrict)
+  scores       Score[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, examId, courseId])
+  @@unique([tenantId, examId, id])
+  @@index([tenantId, examId, displayOrder])
+  @@map("exam_subjects")
+}
+
+model Score {
+  id        String      @id @default(uuid())
+  tenantId  String      @map("tenant_id")
+  examId    String      @map("exam_id")
+  subjectId String      @map("subject_id")
+  studentId String      @map("student_id")
+  graderId  String      @map("grader_id")
+  value     Decimal?    @db.Decimal(8, 2)
+  absent    Boolean     @default(false)
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+  tenant    Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  exam      Exam        @relation(fields: [tenantId, examId], references: [tenantId, id], onDelete: Cascade)
+  subject   ExamSubject @relation(fields: [tenantId, examId, subjectId], references: [tenantId, examId, id], onDelete: Cascade)
+  student   Person      @relation("ScoreStudent", fields: [tenantId, studentId], references: [tenantId, id], onDelete: Restrict)
+  grader    Person      @relation("ScoreGrader", fields: [tenantId, graderId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, examId, studentId, subjectId])
+  @@index([tenantId, studentId, examId])
+  @@index([tenantId, examId, subjectId])
+  @@map("scores")
+}
+
+model ScoreImport {
+  id          String             @id @default(uuid())
+  tenantId    String             @map("tenant_id")
+  examId      String             @map("exam_id")
+  createdById String             @map("created_by_id")
+  filename    String
+  status      ImportStatus       @default(VALIDATING)
+  totalRows   Int                @default(0) @map("total_rows")
+  appliedRows Int                @default(0) @map("applied_rows")
+  createdAt   DateTime           @default(now()) @map("created_at")
+  completedAt DateTime?          @map("completed_at")
+  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  exam        Exam               @relation(fields: [tenantId, examId], references: [tenantId, id], onDelete: Cascade)
+  createdBy   Person             @relation("ScoreImportCreator", fields: [tenantId, createdById], references: [tenantId, id], onDelete: Restrict)
+  errors      ScoreImportError[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, examId, createdAt])
+  @@map("score_imports")
+}
+
+model ScoreImportError {
+  id          String      @id @default(uuid())
+  tenantId    String      @map("tenant_id")
+  importId    String      @map("import_id")
+  rowNumber   Int         @map("row_number")
+  code        String
+  message     String
+  rawValue    Json?       @map("raw_value")
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  scoreImport ScoreImport @relation(fields: [tenantId, importId], references: [tenantId, id], onDelete: Cascade)
+
+  @@index([tenantId, importId, rowNumber])
+  @@map("score_import_errors")
 }
