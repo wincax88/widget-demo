@@ -165,6 +165,7 @@ model Course {
   id          String               @id @default(uuid())
   tenantId    String               @map("tenant_id")
   eduplusId   String               @map("eduplus_id")
+  code        String?
   name        String
   active      Boolean              @default(true)
   createdAt   DateTime             @default(now()) @map("created_at")
@@ -173,6 +174,7 @@ model Course {
   assignments TeachingAssignment[]
 
   @@unique([tenantId, eduplusId])
+  @@unique([tenantId, code])
   @@index([tenantId, active])
   @@map("courses")
 }

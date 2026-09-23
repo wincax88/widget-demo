@@ -33,14 +33,13 @@ export class OidcVerifier {
     try {
       const { payload } = await jwtVerify(token, keySet, {
         issuer: context.issuer,
-        audience: context.clientId,
       })
-      const identityType = String(payload.identity_type ?? '').toUpperCase() as PersonType
-      if (!Object.values(PersonType).includes(identityType)) {
+      const identityType = this.toPersonType(payload.identity_type ?? payload.eit)
+      if (!identityType) {
         throw new Error('Unsupported identity type')
       }
-      const tenantId = String(payload.tenant_id ?? '')
-      const identityId = String(payload.identity_id ?? '')
+      const tenantId = String(payload.tenant_id ?? payload.tid ?? '')
+      const identityId = String(payload.identity_id ?? payload.eui ?? payload.sub ?? '')
       const clientId = String(payload.azp ?? payload.client_id ?? '')
       if (!payload.sub || !tenantId || !identityId || clientId !== context.clientId) {
         throw new Error('Required identity claims are missing')
@@ -59,5 +58,19 @@ export class OidcVerifier {
     } catch {
       throw new UnauthorizedException('OIDC token validation failed')
     }
+  }
+
+  private toPersonType(value: unknown): PersonType | null {
+    const normalized = String(value ?? '').toLowerCase()
+    const aliases: Record<string, PersonType> = {
+      staff: PersonType.STAFF,
+      teacher: PersonType.TEACHER,
+      tch: PersonType.TEACHER,
+      student: PersonType.STUDENT,
+      stu: PersonType.STUDENT,
+      parent: PersonType.PARENT,
+      par: PersonType.PARENT,
+    }
+    return aliases[normalized] ?? null
   }
 }

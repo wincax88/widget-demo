@@ -109,6 +109,88 @@ export class AuthService {
     })
   }
 
+  async getAccessTokenForSession(sessionId: string) {
+    const session = await this.prisma.appSession.findUnique({
+      where: { id: sessionId },
+      include: {
+        tenant: {
+          include: {
+            credentials: {
+              where: { kind: CredentialKind.OAUTH_CLIENT_SECRET, revokedAt: null },
+              take: 1,
+            },
+          },
+        },
+      },
+    })
+    if (
+      !session ||
+      session.revokedAt ||
+      session.expiresAt <= new Date() ||
+      session.tenant.status !== TenantStatus.ACTIVE ||
+      !session.refreshCiphertext ||
+      !session.refreshIv ||
+      !session.refreshAuthenticationTag
+    ) {
+      throw new UnauthorizedException('Application session cannot be refreshed')
+    }
+    const credential = session.tenant.credentials[0]
+    if (!credential?.clientId || !session.tenant.issuerUrl) {
+      throw new UnauthorizedException('Tenant OAuth configuration is unavailable')
+    }
+    const tokenEndpoint =
+      session.tenant.tokenEndpoint ??
+      `${session.tenant.issuerUrl.replace(/\/$/, '')}/protocol/openid-connect/token`
+    const currentRefreshToken = this.crypto.decrypt({
+      ciphertext: session.refreshCiphertext,
+      iv: session.refreshIv,
+      authenticationTag: session.refreshAuthenticationTag,
+    })
+    const response = await fetch(tokenEndpoint, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: currentRefreshToken,
+        client_id: credential.clientId,
+        client_secret: this.crypto.decrypt(credential),
+      }),
+      signal: AbortSignal.timeout(10_000),
+    })
+    if (!response.ok) {
+      throw new UnauthorizedException('EduPlus application session refresh failed')
+    }
+    const tokens = (await response.json()) as OidcTokenResponse
+    if (!tokens.access_token) {
+      throw new UnauthorizedException('EduPlus refresh response is incomplete')
+    }
+    const identity = await this.oidcVerifier.verify(tokens.access_token, {
+      issuer: session.tenant.issuerUrl,
+      jwksUri:
+        session.tenant.jwksUri ??
+        `${session.tenant.issuerUrl.replace(/\/$/, '')}/protocol/openid-connect/certs`,
+      clientId: credential.clientId,
+    })
+    if (
+      identity.tenantId !== session.tenant.eduplusTenantId ||
+      identity.clientId !== credential.clientId ||
+      identity.identityId !== session.identityId
+    ) {
+      throw new UnauthorizedException('Refreshed token context changed')
+    }
+    const encrypted = this.crypto.encrypt(tokens.refresh_token ?? currentRefreshToken)
+    await this.prisma.appSession.update({
+      where: { id: session.id },
+      data: {
+        refreshCiphertext: encrypted.ciphertext,
+        refreshIv: encrypted.iv,
+        refreshAuthenticationTag: encrypted.authenticationTag,
+        expiresAt: new Date(Date.now() + (tokens.refresh_expires_in ?? 1800) * 1000),
+      },
+    })
+    return tokens.access_token
+  }
+
   private async acceptOidcTokenResponse(
     context: Awaited<ReturnType<AuthService['loadTenantContext']>>,
     tokens: OidcTokenResponse,
