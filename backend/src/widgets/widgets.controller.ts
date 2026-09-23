@@ -1,8 +1,16 @@
-import { Controller, Get, NotFoundException, Param } from '@nestjs/common'
+import { Body, Controller, Get, Header, Headers, NotFoundException, Param, Post } from '@nestjs/common'
+import { JsonOnly, WidgetRoute } from '../security/security.module'
 import { EXAMINATION_WIDGET_KEYS, EXAMINATION_WIDGETS, ExaminationWidgetKey } from './widget-catalog'
+import {
+  WidgetAuthRequest,
+  WidgetAuthService,
+  WidgetRefreshRequest,
+} from './widget-auth.service'
 
 @Controller('v1/open/demo-school/widgets')
 export class WidgetsController {
+  constructor(private readonly auth: WidgetAuthService) {}
+
   @Get('schema')
   schema() {
     return {
@@ -18,6 +26,25 @@ export class WidgetsController {
       throw new NotFoundException('UNKNOWN_WIDGET')
     }
     return diagnosticPayload(widgetKey as ExaminationWidgetKey)
+  }
+
+  @Post('auth')
+  @WidgetRoute()
+  @JsonOnly()
+  @Header('Cache-Control', 'no-store')
+  authorize(@Body() body: WidgetAuthRequest) {
+    return this.auth.authorize(body)
+  }
+
+  @Post('token/refresh')
+  @WidgetRoute()
+  @JsonOnly()
+  @Header('Cache-Control', 'no-store')
+  refresh(
+    @Body() body: WidgetRefreshRequest,
+    @Headers('authorization') authorization?: string,
+  ) {
+    return this.auth.refresh(body, authorization)
   }
 }
 

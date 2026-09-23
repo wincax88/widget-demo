@@ -19,9 +19,11 @@ describe('WidgetRefreshSessionService', () => {
   const context = (): WidgetSessionContext => ({
     tenantId,
     userId: 'eduplus-user-1',
+    identityId: 'student-identity-1',
     identityType: 'student',
     appCode: 'exam-results',
     configSnapshotId: 'snapshot-1',
+    scope: 'widget.data.read',
     authorization: {
       widgetKeys: ['exam-latest-summary', 'exam-score-table'],
       dataEndpointKeys: ['results-self'],
@@ -65,9 +67,11 @@ describe('WidgetRefreshSessionService', () => {
   it.each([
     ['tenantId', 'other-tenant'],
     ['userId', 'other-user'],
+    ['identityId', 'other-identity'],
     ['identityType', 'parent'],
     ['appCode', 'other-app'],
     ['configSnapshotId', 'other-snapshot'],
+    ['scope', 'widget.data.read admin'],
   ] as const)('rejects a mismatched %s binding', async (field, value) => {
     const created = await createSession()
     await expect(service.load(created.id, 'access-old', { ...context(), [field]: value }))
@@ -78,6 +82,7 @@ describe('WidgetRefreshSessionService', () => {
     ['widget keys', { widgetKeys: ['exam-score-trend'] }],
     ['endpoint keys', { dataEndpointKeys: ['other-endpoint'] }],
     ['widget/endpoint pairs', { endpointPairs: [{ widgetKey: 'exam-latest-summary', dataEndpointKey: 'other-endpoint' }] }],
+    ['query preset', { endpointPairs: [{ widgetKey: 'exam-latest-summary', dataEndpointKey: 'results-self', queryPresetKey: 'other-preset' }] }],
   ] as Array<[string, Partial<WidgetAuthorizationSnapshot>]>)('binds the exact authorization %s', async (_label, mutation) => {
     const created = await createSession()
     const changed = context()

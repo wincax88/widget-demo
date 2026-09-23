@@ -1,4 +1,9 @@
-import { BadGatewayException, Injectable } from '@nestjs/common'
+import {
+  BadGatewayException,
+  ConflictException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common'
 import { createHmac, randomUUID } from 'node:crypto'
 
 export interface OidcTokenResponse {
@@ -18,6 +23,13 @@ interface HandoffExchangeInput {
   code: string
   timestamp?: number
   nonce?: string
+}
+
+interface RefreshInput {
+  tokenEndpoint: string
+  clientId: string
+  clientSecret: string
+  refreshToken: string
 }
 
 @Injectable()
@@ -56,6 +68,35 @@ export class HandoffClient {
       typeof tokens.expires_in !== 'number'
     ) {
       throw new BadGatewayException('EduPlus returned an incomplete token response')
+    }
+    return tokens as OidcTokenResponse
+  }
+
+  async refresh(input: RefreshInput): Promise<OidcTokenResponse> {
+    const response = await fetch(input.tokenEndpoint, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: input.refreshToken,
+        client_id: input.clientId,
+        client_secret: input.clientSecret,
+      }),
+      signal: AbortSignal.timeout(10_000),
+    })
+    if (!response.ok) {
+      const body = await response.json().catch(() => null) as { error?: unknown } | null
+      if (response.status === 409) {
+        throw new ConflictException('EduPlus widget token refresh conflicted')
+      }
+      if (response.status === 401 || body?.error === 'invalid_grant') {
+        throw new UnauthorizedException('EduPlus widget refresh session is invalid')
+      }
+      throw new BadGatewayException('EduPlus widget token refresh failed')
+    }
+    const tokens = (await response.json()) as Partial<OidcTokenResponse>
+    if (typeof tokens.access_token !== 'string' || typeof tokens.expires_in !== 'number') {
+      throw new BadGatewayException('EduPlus returned an incomplete refresh response')
     }
     return tokens as OidcTokenResponse
   }

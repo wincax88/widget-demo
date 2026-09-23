@@ -27,6 +27,7 @@ export function validateEnv(env: Record<string, unknown>) {
     CREDENTIAL_ENCRYPTION_KEY: encryptionKey,
     EDUPLUS_WEBHOOK_SECRET: required(env, 'EDUPLUS_WEBHOOK_SECRET'),
     EDUPLUS_BASE_URL: validUrl(env, 'EDUPLUS_BASE_URL'),
+    EDUPLUS_APP_CODE: required(env, 'EDUPLUS_APP_CODE'),
     APP_ORIGIN: validUrl(env, 'APP_ORIGIN'),
     EDUPLUS_WORKBENCH_ORIGIN: validUrl(env, 'EDUPLUS_WORKBENCH_ORIGIN'),
     PORT: Number(env.PORT ?? 8888),

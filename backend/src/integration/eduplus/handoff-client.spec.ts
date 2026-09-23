@@ -48,4 +48,41 @@ describe('HandoffClient', () => {
       }),
     )
   })
+
+  it('uses the tenant token endpoint for a server-side refresh grant', async () => {
+    const fetchMock = jest.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({
+        access_token: 'access-two', refresh_token: 'refresh-two',
+        token_type: 'Bearer', expires_in: 300,
+      }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    )
+
+    await new HandoffClient().refresh({
+      tokenEndpoint: 'https://issuer.example/token',
+      clientId: 'oc_xxx', clientSecret: 'secret', refreshToken: 'refresh-one',
+    })
+
+    const init = fetchMock.mock.calls[0][1]!
+    expect(fetchMock.mock.calls[0][0]).toBe('https://issuer.example/token')
+    expect(init).toMatchObject({
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
+    })
+    expect(String(init.body)).toBe(new URLSearchParams({
+      grant_type: 'refresh_token', refresh_token: 'refresh-one',
+      client_id: 'oc_xxx', client_secret: 'secret',
+    }).toString())
+  })
+
+  it('maps OAuth invalid_grant to an authentication failure', async () => {
+    jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
+      JSON.stringify({ error: 'invalid_grant', error_description: 'secret detail' }),
+      { status: 400, headers: { 'content-type': 'application/json' } },
+    ))
+
+    await expect(new HandoffClient().refresh({
+      tokenEndpoint: 'https://issuer.example/token', clientId: 'oc_xxx',
+      clientSecret: 'secret', refreshToken: 'expired-refresh',
+    })).rejects.toMatchObject({ status: 401 })
+  })
 })

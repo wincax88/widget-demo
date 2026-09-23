@@ -7,15 +7,21 @@ import { PrismaService } from '../prisma/prisma.service'
 export interface WidgetAuthorizationSnapshot {
   widgetKeys: string[]
   dataEndpointKeys: string[]
-  endpointPairs: Array<{ widgetKey: string; dataEndpointKey: string }>
+  endpointPairs: Array<{
+    widgetKey: string
+    dataEndpointKey: string
+    queryPresetKey?: string
+  }>
 }
 
 export interface WidgetSessionContext {
   tenantId: string
   userId: string
+  identityId: string
   identityType: string
   appCode: string
   configSnapshotId: string
+  scope: string
   authorization: WidgetAuthorizationSnapshot
 }
 
@@ -47,19 +53,21 @@ export class WidgetRefreshSessionService {
     accessToken: string
     refreshToken: string
     expiresAt: Date
-  }) {
+  }, database: Pick<Prisma.TransactionClient, 'widgetRefreshSession'> = this.prisma) {
     const authorization = normalizeAuthorization(input.context.authorization)
     const context = { ...input.context, authorization }
     const id = randomUUID()
     const encrypted = this.crypto.encrypt(input.refreshToken, aadFor(id, context))
-    return this.prisma.widgetRefreshSession.create({
+    return database.widgetRefreshSession.create({
       data: {
         id,
         tenantId: context.tenantId,
         userId: context.userId,
+        identityId: context.identityId,
         identityType: context.identityType,
         appCode: context.appCode,
         configSnapshotId: context.configSnapshotId,
+        scope: context.scope,
         accessTokenHash: tokenHash(input.accessToken),
         refreshTokenCiphertext: encrypted.ciphertext,
         refreshTokenIv: encrypted.iv,
@@ -166,9 +174,11 @@ function contextOf(session: WidgetRefreshSession): WidgetSessionContext {
   return {
     tenantId: session.tenantId,
     userId: session.userId,
+    identityId: session.identityId,
     identityType: session.identityType,
     appCode: session.appCode,
     configSnapshotId: session.configSnapshotId,
+    scope: session.scope,
     authorization: normalizeAuthorization(session.authorizationJson as unknown as WidgetAuthorizationSnapshot),
   }
 }
@@ -176,9 +186,11 @@ function contextOf(session: WidgetRefreshSession): WidgetSessionContext {
 function assertContext(actual: WidgetSessionContext, expected: WidgetSessionContext) {
   const matches = actual.tenantId === expected.tenantId
     && actual.userId === expected.userId
+    && actual.identityId === expected.identityId
     && actual.identityType === expected.identityType
     && actual.appCode === expected.appCode
     && actual.configSnapshotId === expected.configSnapshotId
+    && actual.scope === expected.scope
     && JSON.stringify(actual.authorization) === JSON.stringify(normalizeAuthorization(expected.authorization))
   if (!matches) throw new WidgetSessionError('SESSION_CONTEXT_MISMATCH')
 }
@@ -188,8 +200,12 @@ function normalizeAuthorization(value: WidgetAuthorizationSnapshot): WidgetAutho
     widgetKeys: [...value.widgetKeys].sort(),
     dataEndpointKeys: [...value.dataEndpointKeys].sort(),
     endpointPairs: [...value.endpointPairs]
-      .map((pair) => ({ widgetKey: pair.widgetKey, dataEndpointKey: pair.dataEndpointKey }))
-      .sort((left, right) => `${left.widgetKey}\0${left.dataEndpointKey}`.localeCompare(`${right.widgetKey}\0${right.dataEndpointKey}`)),
+      .map((pair) => ({
+        widgetKey: pair.widgetKey,
+        dataEndpointKey: pair.dataEndpointKey,
+        ...(pair.queryPresetKey ? { queryPresetKey: pair.queryPresetKey } : {}),
+      }))
+      .sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right))),
   }
 }
 
@@ -198,9 +214,11 @@ function aadFor(id: string, context: WidgetSessionContext) {
     id,
     tenantId: context.tenantId,
     userId: context.userId,
+    identityId: context.identityId,
     identityType: context.identityType,
     appCode: context.appCode,
     configSnapshotId: context.configSnapshotId,
+    scope: context.scope,
     authorization: normalizeAuthorization(context.authorization),
   }), 'utf8')
 }

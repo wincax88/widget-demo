@@ -131,9 +131,11 @@ model WidgetRefreshSession {
   id                     String    @id @default(uuid())
   tenantId               String    @map("tenant_id")
   userId                 String    @map("user_id")
+  identityId             String    @map("identity_id")
   identityType           String    @map("identity_type")
   appCode                String    @map("app_code")
   configSnapshotId       String    @map("config_snapshot_id")
+  scope                   String
   accessTokenHash        String    @map("access_token_hash")
   refreshTokenCiphertext Bytes     @map("refresh_token_ciphertext")
   refreshTokenIv         Bytes     @map("refresh_token_iv")
@@ -147,6 +149,20 @@ model WidgetRefreshSession {
 
   @@index([tenantId, userId, appCode, expiresAt])
   @@map("widget_refresh_sessions")
+}
+
+model WidgetAuthExchange {
+  keyHash            String    @id @map("key_hash")
+  clientId           String    @map("client_id")
+  requestHash        String    @map("request_hash")
+  responseCiphertext Bytes?    @map("response_ciphertext")
+  responseIv         Bytes?    @map("response_iv")
+  responseTag        Bytes?    @map("response_tag")
+  expiresAt          DateTime  @map("expires_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+
+  @@index([expiresAt])
+  @@map("widget_auth_exchanges")
 }
 
 model DirectorySyncRun {
