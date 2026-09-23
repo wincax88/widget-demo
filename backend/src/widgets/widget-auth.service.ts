@@ -7,6 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config'
 import { CredentialKind, Prisma, TenantStatus } from '@prisma/client'
 import { createHash } from 'node:crypto'
+import { decodeJwt } from 'jose'
 import { CredentialCryptoService } from '../integration/crypto/credential-crypto.service'
 import { HandoffClient } from '../integration/eduplus/handoff-client'
 import { OidcVerifier, VerifiedWidgetIdentity } from '../integration/eduplus/oidc-verifier'
@@ -199,6 +200,31 @@ export class WidgetAuthService {
       refresh_session_id: row.id,
       refresh_after: Math.max(1, tokens.expires_in - 60),
     }
+  }
+
+  async verifyWidgetAccessToken(token: string) {
+    let routing: ReturnType<typeof decodeJwt>
+    try {
+      routing = decodeJwt(token)
+    } catch {
+      throw new UnauthorizedException('Widget access token is invalid')
+    }
+    const clientId = typeof (routing.azp ?? routing.client_id) === 'string'
+      ? String(routing.azp ?? routing.client_id)
+      : ''
+    const appCode = typeof routing.app_code === 'string' ? routing.app_code : ''
+    if (
+      !clientId
+      || appCode !== this.config.getOrThrow<string>('EDUPLUS_APP_CODE')
+    ) {
+      throw new UnauthorizedException('Widget access token routing claims are invalid')
+    }
+    const credential = await this.loadCredential(clientId)
+    const identity = await this.verifyToken(token, credential)
+    if (identity.tenantId !== credential.tenant.eduplusTenantId) {
+      throw new UnauthorizedException('Widget access token tenant does not match')
+    }
+    return { tenant: credential.tenant, identity }
   }
 
   private validateAuthInput(input: WidgetAuthRequest) {

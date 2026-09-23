@@ -67,7 +67,7 @@ export const EXAMINATION_WIDGETS = [
       refreshInterval: 300,
     },
     fields: {
-      itemsPath: 'data.rows',
+      itemsPath: 'rows',
       columns: [
         { title: '学生', dataIndex: 'student_name' },
         { title: '科目', dataIndex: 'subject' },
@@ -93,7 +93,7 @@ export const EXAMINATION_WIDGETS = [
       refreshInterval: 600,
     },
     fields: {
-      itemsPath: 'data.items',
+      itemsPath: 'items',
       item: {
         id: 'exam_id',
         title: 'title',

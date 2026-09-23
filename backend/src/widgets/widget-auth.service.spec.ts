@@ -300,4 +300,24 @@ describe('WidgetAuthService', () => {
     expect(error).toBeInstanceOf(HttpException)
     expect(error.getStatus()).toBe(401)
   })
+
+  it('uses unverified routing claims only to select a credential, then verifies the batch token', async () => {
+    const { service, verifier } = create()
+    const token = testJwt({ azp: 'oc_tenant_1', app_code: 'demo-school' })
+
+    await expect(service.verifyWidgetAccessToken(token)).resolves.toEqual({
+      tenant: credential.tenant,
+      identity: verified,
+    })
+    expect(verifier.verifyWidget).toHaveBeenCalledWith(token, expect.objectContaining({
+      issuer: credential.tenant.issuerUrl,
+      clientId: 'oc_tenant_1',
+      appCode: 'demo-school',
+    }))
+  })
 })
+
+function testJwt(payload: Record<string, unknown>) {
+  const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url')
+  return `${encode({ alg: 'RS256' })}.${encode(payload)}.signature`
+}

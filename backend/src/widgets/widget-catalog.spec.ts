@@ -23,6 +23,8 @@ describe('examination widget catalog', () => {
       'teacher,student,parent',
       'student,parent',
     ])
+    expect(EXAMINATION_WIDGETS[1].fields).toMatchObject({ itemsPath: 'rows' })
+    expect(EXAMINATION_WIDGETS[2].fields).toMatchObject({ itemsPath: 'items' })
 
     for (const widget of EXAMINATION_WIDGETS) {
       expect(widget.data_source.url).toMatch(/^\/v1\/open\/demo-school\/widgets\/diagnostics\//)

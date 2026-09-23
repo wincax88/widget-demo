@@ -17,8 +17,9 @@ export class ResultsService {
     }).then((relations) => relations.map((relation) => relation.student))
   }
 
-  async forStudent(actor: ActorContext, studentId: string) {
+  async forStudent(actor: ActorContext, studentId: string, limit?: number) {
     await this.assertAccess(actor, studentId)
+    const boundedLimit = limit === undefined ? undefined : Math.max(1, Math.min(50, limit))
     const exams = await this.prisma.exam.findMany({
       where: {
         tenantId: actor.tenantId,
@@ -29,10 +30,13 @@ export class ResultsService {
         subjects: { include: { course: true }, orderBy: { displayOrder: 'asc' } },
         scores: true,
       },
-      orderBy: [{ examDate: 'asc' }, { id: 'asc' }],
+      orderBy: boundedLimit
+        ? [{ examDate: 'desc' }, { id: 'desc' }]
+        : [{ examDate: 'asc' }, { id: 'asc' }],
+      ...(boundedLimit ? { take: boundedLimit } : {}),
     })
 
-    return exams.map((exam) => {
+    const results = exams.map((exam) => {
       const targetScores = exam.scores.filter((score) => score.studentId === studentId)
       const numeric = targetScores.filter((score) => score.value !== null)
       const total = numeric.reduce((sum, score) => sum + score.value!.toNumber(), 0)
@@ -68,6 +72,69 @@ export class ResultsService {
         subjects,
       }
     })
+    return boundedLimit ? results.reverse() : results
+  }
+
+  async forTeacher(actor: ActorContext) {
+    if (actor.identityType !== PersonType.TEACHER && actor.identityType !== PersonType.STAFF) {
+      throw new ForbiddenException('A staff identity is required')
+    }
+    const assignments = actor.identityType === PersonType.TEACHER
+      ? await this.prisma.teachingAssignment.findMany({
+        where: {
+          tenantId: actor.tenantId,
+          teacherId: actor.personId,
+          active: true,
+          classroom: { active: true },
+          course: { active: true },
+        },
+        select: { classroomId: true, courseId: true },
+      })
+      : []
+    const allowed = new Set(assignments.map((item) => `${item.classroomId}\0${item.courseId}`))
+    if (actor.identityType === PersonType.TEACHER && allowed.size === 0) return []
+    const exams = await this.prisma.exam.findMany({
+      where: {
+        tenantId: actor.tenantId,
+        status: ExamStatus.PUBLISHED,
+        ...(actor.identityType === PersonType.TEACHER
+          ? {
+            OR: assignments.map((item) => ({
+              classroomId: item.classroomId,
+              subjects: { some: { courseId: item.courseId } },
+            })),
+          }
+          : {}),
+      },
+      include: {
+        subjects: { include: { course: true }, orderBy: { displayOrder: 'asc' } },
+        scores: { include: { student: true } },
+      },
+      orderBy: [{ examDate: 'desc' }, { id: 'desc' }],
+      take: 1,
+    })
+    return exams.flatMap((exam) => exam.subjects.flatMap((subject) => {
+      if (
+        actor.identityType === PersonType.TEACHER
+        && !allowed.has(`${exam.classroomId}\0${subject.courseId}`)
+      ) return []
+      const subjectScores = exam.scores.filter((score) => score.subjectId === subject.id)
+      const ranks = new Map(competitionRanks(subjectScores
+        .filter((score) => score.value !== null)
+        .map((score) => ({ id: score.studentId, value: score.value!.toNumber() })))
+        .map((rank) => [rank.id, rank.rank]))
+      return subjectScores.map((score) => ({
+        examId: exam.id,
+        examTitle: exam.title,
+        examDate: exam.examDate,
+        studentId: score.studentId,
+        studentName: score.student.name,
+        subject: subject.course.name,
+        score: score.value?.toNumber() ?? null,
+        absent: score.absent,
+        rank: ranks.get(score.studentId) ?? null,
+      }))
+    }))
   }
 
   private async assertAccess(actor: ActorContext, studentId: string) {

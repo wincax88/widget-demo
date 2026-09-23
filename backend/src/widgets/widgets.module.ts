@@ -3,12 +3,14 @@ import { CredentialCryptoService } from '../integration/crypto/credential-crypto
 import { HandoffClient } from '../integration/eduplus/handoff-client'
 import { OidcVerifier } from '../integration/eduplus/oidc-verifier'
 import { PrismaModule } from '../prisma/prisma.module'
+import { ResultsModule } from '../results/results.module'
 import { WidgetsController } from './widgets.controller'
 import { WidgetAuthService } from './widget-auth.service'
+import { WidgetDataService } from './widget-data.service'
 import { WidgetRefreshSessionService } from './widget-refresh-session.service'
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, ResultsModule],
   controllers: [WidgetsController],
   providers: [
     CredentialCryptoService,
@@ -16,6 +18,7 @@ import { WidgetRefreshSessionService } from './widget-refresh-session.service'
     OidcVerifier,
     WidgetRefreshSessionService,
     WidgetAuthService,
+    WidgetDataService,
   ],
   exports: [WidgetRefreshSessionService],
 })

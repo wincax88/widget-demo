@@ -32,6 +32,10 @@ describeWithDatabase('ResultsService role-scoped visibility', () => {
     inactiveParentId = people[6].id
     const classroom = await prisma.classroom.create({ data: { tenantId, eduplusId: 'class', name: 'Class' } })
     const course = await prisma.course.create({ data: { tenantId, eduplusId: 'math', name: 'Math' } })
+    await prisma.teachingAssignment.create({ data: {
+      tenantId, eduplusId: 'assigned-math', teacherId, classroomId: classroom.id,
+      courseId: course.id, active: true,
+    } })
     await prisma.parentStudentRelation.createMany({ data: [
       { tenantId, eduplusId: 'active-link', parentId, studentId: targetId, active: true },
       { tenantId, eduplusId: 'inactive-link', parentId: inactiveParentId, studentId: targetId, active: false },
@@ -42,6 +46,19 @@ describeWithDatabase('ResultsService role-scoped visibility', () => {
       const values = index === 0 ? [90, 100, 90, 80] : [80, 95, 85, 70]
       await prisma.score.createMany({ data: people.slice(1, 5).map((student, studentIndex) => ({ tenantId, examId: exam.id, subjectId: subject.id, studentId: student.id, graderId: teacherId, value: values[studentIndex] })) })
     }
+    const otherClass = await prisma.classroom.create({ data: { tenantId, eduplusId: 'other-class', name: 'Other Class' } })
+    const otherCourse = await prisma.course.create({ data: { tenantId, eduplusId: 'science', name: 'Science' } })
+    const unauthorizedExam = await prisma.exam.create({ data: {
+      tenantId, creatorId: teacherId, classroomId: otherClass.id, title: 'Other Exam', type: 'test',
+      examDate: new Date('2026-03-01'), status: ExamStatus.PUBLISHED,
+    } })
+    const unauthorizedSubject = await prisma.examSubject.create({ data: {
+      tenantId, examId: unauthorizedExam.id, courseId: otherCourse.id, maximumScore: 100,
+    } })
+    await prisma.score.create({ data: {
+      tenantId, examId: unauthorizedExam.id, subjectId: unauthorizedSubject.id,
+      studentId: people[3].id, graderId: teacherId, value: 77,
+    } })
     service = new ResultsService(prisma as never)
   })
 
@@ -63,5 +80,17 @@ describeWithDatabase('ResultsService role-scoped visibility', () => {
     await expect(service.forStudent({ tenantId, personId: parentId, identityType: PersonType.PARENT }, targetId)).resolves.toHaveLength(2)
     await expect(service.forStudent({ tenantId, personId: parentId, identityType: PersonType.PARENT }, otherStudentId)).rejects.toBeInstanceOf(ForbiddenException)
     await expect(service.forStudent({ tenantId, personId: inactiveParentId, identityType: PersonType.PARENT }, targetId)).rejects.toBeInstanceOf(ForbiddenException)
+  })
+
+  it('returns only published scores inside the teacher active assignment boundary', async () => {
+    const rows = await service.forTeacher({
+      tenantId, personId: teacherId, identityType: PersonType.TEACHER,
+    })
+    expect(rows).toHaveLength(4)
+    expect(new Set(rows.map((row) => row.subject))).toEqual(new Set(['Math']))
+    expect(new Set(rows.map((row) => row.examTitle))).toEqual(new Set(['Exam 1']))
+    expect(rows.map((row) => row.examTitle)).not.toContain('Other Exam')
+    expect(rows.map((row) => row.examTitle)).not.toContain('Exam 2')
+    expect(rows.map((row) => row.examTitle)).not.toContain('Exam 3')
   })
 })

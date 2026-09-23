@@ -7,6 +7,7 @@ import { configureApp } from '../main'
 import { SecurityModule } from '../security/security.module'
 import { WidgetAuthService } from './widget-auth.service'
 import { WidgetsController } from './widgets.controller'
+import { WidgetDataService } from './widget-data.service'
 
 describe('widget auth HTTP contract', () => {
   let app: INestApplication
@@ -29,7 +30,10 @@ describe('widget auth HTTP contract', () => {
         SecurityModule,
       ],
       controllers: [WidgetsController],
-      providers: [{ provide: WidgetAuthService, useValue: auth }],
+      providers: [
+        { provide: WidgetAuthService, useValue: auth },
+        { provide: WidgetDataService, useValue: { batch: jest.fn() } },
+      ],
     }).compile()
     app = module.createNestApplication<NestExpressApplication>({ bodyParser: false })
     configureApp(app as NestExpressApplication)

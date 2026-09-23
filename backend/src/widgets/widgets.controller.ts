@@ -6,10 +6,14 @@ import {
   WidgetAuthService,
   WidgetRefreshRequest,
 } from './widget-auth.service'
+import { WidgetBatchRequest, WidgetDataService } from './widget-data.service'
 
 @Controller('v1/open/demo-school/widgets')
 export class WidgetsController {
-  constructor(private readonly auth: WidgetAuthService) {}
+  constructor(
+    private readonly auth: WidgetAuthService,
+    private readonly data: WidgetDataService,
+  ) {}
 
   @Get('schema')
   schema() {
@@ -45,6 +49,17 @@ export class WidgetsController {
     @Headers('authorization') authorization?: string,
   ) {
     return this.auth.refresh(body, authorization)
+  }
+
+  @Post('batch-data')
+  @WidgetRoute()
+  @JsonOnly()
+  @Header('Cache-Control', 'no-store')
+  batch(
+    @Body() body: WidgetBatchRequest,
+    @Headers('authorization') authorization?: string,
+  ) {
+    return this.data.batch(body, authorization)
   }
 }
 
