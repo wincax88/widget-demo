@@ -7,6 +7,7 @@ import { ExamsModule } from './exams/exams.module'
 import { HealthController } from './health/health.controller'
 import { PrismaModule } from './prisma/prisma.module'
 import { SecurityModule } from './security/security.module'
+import { ResultsModule } from './results/results.module'
 import { SubscriptionsModule } from './subscriptions/subscriptions.module'
 
 @Module({
@@ -18,6 +19,7 @@ import { SubscriptionsModule } from './subscriptions/subscriptions.module'
     AuthModule,
     DirectorySyncModule,
     ExamsModule,
+    ResultsModule,
   ],
   controllers: [HealthController],
 })
