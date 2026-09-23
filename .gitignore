@@ -3,6 +3,9 @@ backend/target/
 *.class
 
 # Node / Vite
+backend/node_modules/
+backend/dist/
+backend/coverage/
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
