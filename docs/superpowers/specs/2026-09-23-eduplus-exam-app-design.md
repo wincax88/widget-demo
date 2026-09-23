@@ -2,9 +2,9 @@
 
 ## 背景
 
-`widget-demo` 当前是一个第三方接入诊断 Demo，包含 Webhook 展示、开放 API 调试、OAuth 调试和一组使用内存模拟 token 与硬编码数据的 Widget 接口。目标是将其改造成可在 EduPlus 开发者门户注册、审核、被租户订阅并从工作台无感启动的考试成绩应用。业务实现全部位于 `widget-demo`；`edu-plus-2` 只增加 Widget handoff 所缺少的公开 OAuth `client_id` 选择信息，不扩展平台业务能力。
+`widget-demo` 当前是一个第三方接入诊断 Demo，包含 Webhook 展示、开放 API 调试、OAuth 调试和一组使用内存模拟 token 与硬编码数据的 Widget 接口。目标是将其改造成可在 EduPlus 开发者门户注册、审核、被租户订阅并从工作台无感启动的考试成绩应用。业务实现全部位于 `widget-demo`；`edu-plus-2` 只补齐 Widget handoff 所缺少的公开 OAuth `client_id` 选择信息和 `widget_data` 服务端 refresh capability，不扩展平台业务能力。
 
-应用同时提供独立应用入口和第三方 Widget。独立应用优先完成租户订阅、工作台入口、Handoff 登录、基座公开 API 主数据同步和考试成绩业务闭环；Widget 使用相同的真实租户、身份、关系和成绩数据。
+应用同时提供独立应用入口和第三方 Widget。独立应用优先完成租户订阅、工作台入口、Handoff 登录、基座公开 API 主数据同步和考试成绩业务闭环；Widget 使用相同的真实租户、身份、关系和成绩数据。完整应用登录与 Widget 数据授权是两套独立 OAuth 生命周期：前者建立标准 OIDC 应用会话，后者只授予工作台批量读取指定 Widget 数据的短期权限，两者的 refresh token 不得混用。
 
 ## 目标
 
@@ -70,12 +70,14 @@ NestJS 模块边界：
    client_id + "\n" + code + "\n" + timestamp + "\n" + nonce
    ```
 
-4. 后端调用 EduPlus `POST /api/v1/app-handoff/token`。
+4. 后端调用 EduPlus `POST /api/v1/app-handoff/token`，取得标准 OIDC `access_token`、`id_token` 和应用登录 `refresh_token`。
 5. 后端校验 token 签名、issuer、client/audience、租户、身份和 handoff 类型，并要求 token 中的租户与入口路径选择的租户完全一致。
-6. 后端创建随机服务端会话，Cookie 使用 `HttpOnly`、`Secure` 和合适的 `SameSite` 策略。
+6. 后端在服务端保存并轮换应用登录 refresh token，创建随机应用会话；浏览器 Cookie 使用 `HttpOnly`、`Secure` 和合适的 `SameSite` 策略。
 7. 后端返回 303，使浏览器进入不含 handoff 参数的应用首页。
 
 应用不向浏览器返回 access token、ID token、refresh token、client secret 或 HMAC 签名。code 缺失、过期、重复使用或凭证失效时，页面提示用户从 EduPlus 工作台重新进入。
+
+用户不是从工作台入口进入时，应用按 EduPlus OAuth/OIDC 授权码模式登录；回调后的 token 校验、服务端保存和应用会话建立复用同一处理链。该应用登录 refresh token 只用于维持完整应用登录态和调用其获准的公开 API，不能用于 Widget token 刷新。
 
 ### 基座主数据同步
 
@@ -132,7 +134,9 @@ NestJS 模块边界：
 
 教职工身份下，Widget 返回其授权范围内的考试发布状态和成绩录入进度；学生返回本人已发布成绩；家长按可信 token 上下文与有效亲子关系返回关联子女成绩。没有真实成绩时返回协议规定的空状态，不返回硬编码示例。
 
-Widget 授权 API 将浏览器提交的 handoff code 交给服务端，由服务端使用租户 OAuth 凭证调用既有 `/api/v1/app-handoff/token`。后端验证 `handoff_type=widget_data`、audience、scope、租户、应用和允许的 widget keys。refresh session 保存在服务端并与租户、用户、身份、应用及配置快照绑定。批量数据 API 仅接受有效的 `widget.data.read` token，并对每个 widget 独立应用数据范围校验。
+Widget 授权 API 将浏览器提交的 handoff code 交给服务端，由服务端使用租户 OAuth 凭证调用既有 `/api/v1/app-handoff/token`。后端验证 `handoff_type=widget_data`、audience、scope、租户、应用和允许的 widget keys。应用把返回的 Widget refresh token 加密保存在服务端 refresh session 中，并生成不含敏感信息的 opaque `refresh_session_id` 返回工作台。refresh session 与租户、用户、身份、应用、配置快照和授权范围绑定。批量数据 API 仅接受有效的 `widget.data.read` token，并对每个 widget 独立应用数据范围校验。
+
+工作台负责 Widget 数据刷新调度：它按应用和 `refreshInterval` 合并多个 Widget，一次调用批量数据 API。Widget access token 临近过期时，工作台先携带当前 access token 和 `refresh_session_id` 调用 `widget-demo` refresh API；`widget-demo` 校验绑定上下文后，使用服务端保存的 Widget refresh token 调用 Keycloak 标准 refresh-token grant，保存轮换后的 refresh token，并只把新的短期 access token 和原 opaque session ID 返回工作台。refresh API 不直接读取考试数据；实际取数始终由批量数据 API 完成。
 
 现有 EduPlus Widget handoff metadata 只返回 opaque handoff code，但 token exchange 要求第三方后端预先提交该租户的 `client_id`。为支持多租户，平台协议进行以下最小增量修改：
 
@@ -141,7 +145,7 @@ Widget 授权 API 将浏览器提交的 handoff code 交给服务端，由服务
 3. `widget-demo` 仅使用 `client_id` 查找本地加密凭证，不接受浏览器提交的租户、用户、身份、班级或授权范围。
 4. EduPlus `/api/v1/app-handoff/token` 继续把请求 `client_id` 与已原子消费的 handoff context 进行绑定校验。篡改 `client_id` 只能导致交换失败，不能扩大权限。
 5. `client_id` 是公开 OAuth 客户端标识；`client_secret` 仍只存在于 EduPlus 与 `widget-demo` 服务端。
-6. `widget_data` token exchange 向第三方后端返回 refresh token；`widget-demo` 将其加密绑定到 refresh session，授权 API 和 refresh API 均不得把 refresh token 返回浏览器。
+6. `widget_data` token exchange 向第三方后端返回受限 refresh token；其 audience、scope、租户、身份、应用、Widget endpoint 和配置快照边界不得超过初始 `widget_data` token。`widget-demo` 将其加密绑定到独立的 Widget refresh session，授权 API 和 refresh API 均不得把 refresh token 返回浏览器，也不得复用完整应用的 OIDC 登录 refresh token。
 
 这一平台变更是加法协议变更，不改变数据库、OpenFGA、Keycloak 配置、订阅或权限模型。Keycloak 扩展需要调整 `widget_data` grant 的 refresh token 签发行为并随扩展镜像发布，但不需要配置迁移。实施前必须在 `edu-plus-2` 更新并严格验证现有 `add-third-party-widget-runtime-auth` OpenSpec change，完成 DTO、工作台前端、Keycloak 扩展、接入文档以及成功、缺失、篡改 `client_id` 和 refresh token 不泄露的测试后，才可联调 `widget-demo` 多租户 Widget。
 
