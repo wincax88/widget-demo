@@ -1,4 +1,4 @@
-import { DatabaseOutlined, HomeOutlined, LogoutOutlined } from '@ant-design/icons'
+import { DatabaseOutlined, FileDoneOutlined, HomeOutlined, LogoutOutlined } from '@ant-design/icons'
 import { Button, Layout, Menu, Space, Typography } from 'antd'
 import { ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
@@ -14,7 +14,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const items = [
     { key: '/', icon: <HomeOutlined />, label: <Link to="/">考试成绩</Link> },
     ...(canSync
-      ? [{ key: '/sync', icon: <DatabaseOutlined />, label: <Link to="/sync">主数据同步</Link> }]
+      ? [
+          { key: '/exams', icon: <FileDoneOutlined />, label: <Link to="/exams">考试管理</Link> },
+          { key: '/sync', icon: <DatabaseOutlined />, label: <Link to="/sync">主数据同步</Link> },
+        ]
       : []),
   ]
 

@@ -26,9 +26,10 @@ describeWithDatabase('ExamsService lifecycle and authorization', () => {
     ])
     tenantId = tenant.id
     otherTenantId = otherTenant.id
-    const [teacher, unassigned, classroom, math, english] = await Promise.all([
+    const [teacher, unassigned, student, classroom, math, english] = await Promise.all([
       prisma.person.create({ data: { tenantId, eduplusId: 'teacher', type: PersonType.TEACHER, name: 'Teacher' } }),
       prisma.person.create({ data: { tenantId, eduplusId: 'other-teacher', type: PersonType.TEACHER, name: 'Other' } }),
+      prisma.person.create({ data: { tenantId, eduplusId: 'student', type: PersonType.STUDENT, name: 'Student' } }),
       prisma.classroom.create({ data: { tenantId, eduplusId: 'class', name: 'Class' } }),
       prisma.course.create({ data: { tenantId, eduplusId: 'math', name: 'Math' } }),
       prisma.course.create({ data: { tenantId, eduplusId: 'english', name: 'English' } }),
@@ -40,6 +41,9 @@ describeWithDatabase('ExamsService lifecycle and authorization', () => {
     englishId = english.id
     await prisma.teachingAssignment.create({
       data: { tenantId, eduplusId: 'assignment', teacherId, classroomId, courseId: mathId },
+    })
+    await prisma.studentClassRelation.create({
+      data: { tenantId, eduplusId: 'membership', studentId: student.id, classroomId },
     })
   })
 
@@ -88,5 +92,16 @@ describeWithDatabase('ExamsService lifecycle and authorization', () => {
       { tenantId: otherTenantId, personId: teacherId, identityType: PersonType.TEACHER },
       exam.id,
     )).rejects.toBeInstanceOf(NotFoundException)
+  })
+
+  it('returns only the teacher assigned classes, courses and active students', async () => {
+    await expect(service.options(actor())).resolves.toEqual({
+      classrooms: [{
+        id: classroomId,
+        name: 'Class',
+        courses: [{ id: mathId, name: 'Math' }],
+        students: [{ eduplusId: 'student', name: 'Student' }],
+      }],
+    })
   })
 })

@@ -27,6 +27,11 @@ export class ExamsController {
     return this.exams.list(this.actor(request))
   }
 
+  @Get('options')
+  options(@Req() request: AuthenticatedRequest) {
+    return this.exams.options(this.actor(request))
+  }
+
   @Get(':id')
   detail(@Req() request: AuthenticatedRequest, @Param('id') id: string) {
     return this.exams.detail(this.actor(request), id)

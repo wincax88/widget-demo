@@ -55,6 +55,48 @@ export class ExamsService {
     })
   }
 
+  async options(actor: ActorContext) {
+    this.assertStaffActor(actor)
+    const assignments = await this.prisma.teachingAssignment.findMany({
+      where: {
+        tenantId: actor.tenantId,
+        active: true,
+        ...(actor.identityType === PersonType.TEACHER ? { teacherId: actor.personId } : {}),
+        classroom: { active: true },
+        course: { active: true },
+      },
+      include: { classroom: true, course: true },
+      orderBy: [{ classroom: { name: 'asc' } }, { course: { name: 'asc' } }],
+    })
+    const classroomIds = [...new Set(assignments.map((assignment) => assignment.classroomId))]
+    const memberships = await this.prisma.studentClassRelation.findMany({
+      where: { tenantId: actor.tenantId, classroomId: { in: classroomIds }, active: true, student: { active: true } },
+      include: { student: true },
+      orderBy: { student: { name: 'asc' } },
+    })
+    const classes = new Map<string, {
+      id: string
+      name: string
+      courses: Array<{ id: string; name: string }>
+      students: Array<{ eduplusId: string; name: string }>
+    }>()
+    for (const assignment of assignments) {
+      const classroom = classes.get(assignment.classroomId) ?? {
+        id: assignment.classroom.id,
+        name: assignment.classroom.name,
+        courses: [],
+        students: memberships
+          .filter((membership) => membership.classroomId === assignment.classroomId)
+          .map((membership) => ({ eduplusId: membership.student.eduplusId, name: membership.student.name })),
+      }
+      if (!classroom.courses.some((course) => course.id === assignment.courseId)) {
+        classroom.courses.push({ id: assignment.course.id, name: assignment.course.name })
+      }
+      classes.set(assignment.classroomId, classroom)
+    }
+    return { classrooms: [...classes.values()] }
+  }
+
   async detail(actor: ActorContext, id: string) {
     const exam = await this.prisma.exam.findFirst({
       where: { id, tenantId: actor.tenantId },

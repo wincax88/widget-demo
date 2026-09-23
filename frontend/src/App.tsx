@@ -4,6 +4,9 @@ import LaunchPage from './auth/LaunchPage'
 import { SessionProvider, useSession } from './auth/SessionProvider'
 import AppShell from './layout/AppShell'
 import SyncPage from './pages/SyncPage'
+import ExamListPage from './exams/ExamListPage'
+import ExamEditorPage from './exams/ExamEditorPage'
+import ScoreGridPage from './exams/ScoreGridPage'
 
 function ApplicationRoutes() {
   const { session, loading, error } = useSession()
@@ -47,6 +50,9 @@ function ApplicationRoutes() {
         />
         <Route path="/launch/:tenantCode" element={<Navigate to="/" replace />} />
         <Route path="/sync" element={canSync ? <SyncPage /> : <Navigate to="/" replace />} />
+        <Route path="/exams" element={canSync ? <ExamListPage /> : <Navigate to="/" replace />} />
+        <Route path="/exams/new" element={canSync ? <ExamEditorPage /> : <Navigate to="/" replace />} />
+        <Route path="/exams/:id/scores" element={canSync ? <ScoreGridPage /> : <Navigate to="/" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AppShell>
