@@ -16,6 +16,7 @@
 - 计算总分、平均分、班级排名、科目排名和历次成绩趋势。
 - 提供基于真实数据的成绩 Widget schema、授权、刷新和批量数据 API。
 - 为 EduPlus Widget handoff metadata 和授权请求补充公开 `client_id`，使多租户第三方应用能够选择正确的租户凭证。
+- 修复 EduPlus `widget_data` token exchange 不返回服务端 refresh capability 的既有协议缺口。
 - 使用 NestJS、Prisma 和 PostgreSQL 替换现有 Java Spring Boot 后端。
 - 将应用部署到 Sealos 广州区集群的 `ns-gc40gxwh` namespace，并连接 Sealos 托管 PostgreSQL。
 
@@ -140,8 +141,9 @@ Widget 授权 API 将浏览器提交的 handoff code 交给服务端，由服务
 3. `widget-demo` 仅使用 `client_id` 查找本地加密凭证，不接受浏览器提交的租户、用户、身份、班级或授权范围。
 4. EduPlus `/api/v1/app-handoff/token` 继续把请求 `client_id` 与已原子消费的 handoff context 进行绑定校验。篡改 `client_id` 只能导致交换失败，不能扩大权限。
 5. `client_id` 是公开 OAuth 客户端标识；`client_secret` 仍只存在于 EduPlus 与 `widget-demo` 服务端。
+6. `widget_data` token exchange 向第三方后端返回 refresh token；`widget-demo` 将其加密绑定到 refresh session，授权 API 和 refresh API 均不得把 refresh token 返回浏览器。
 
-这一平台变更是加法协议变更，不改变数据库、OpenFGA、Keycloak、订阅或权限模型。实施前必须在 `edu-plus-2` 创建并严格验证 OpenSpec proposal，完成 DTO、工作台前端、接入文档以及成功、缺失和篡改 `client_id` 的测试后，才可联调 `widget-demo` 多租户 Widget。
+这一平台变更是加法协议变更，不改变数据库、OpenFGA、Keycloak 配置、订阅或权限模型。Keycloak 扩展需要调整 `widget_data` grant 的 refresh token 签发行为并随扩展镜像发布，但不需要配置迁移。实施前必须在 `edu-plus-2` 更新并严格验证现有 `add-third-party-widget-runtime-auth` OpenSpec change，完成 DTO、工作台前端、Keycloak 扩展、接入文档以及成功、缺失、篡改 `client_id` 和 refresh token 不泄露的测试后，才可联调 `widget-demo` 多租户 Widget。
 
 ### 页面
 
@@ -281,6 +283,8 @@ Sealos 分配最终 HTTPS 域名后，同一 origin 用于应用入口；Webhook
 - 工作台只把后端返回的 `client_id` 转交给受控 `auth_url`，不从 Widget schema 或其他浏览器输入覆盖。
 - 缺失或篡改 `client_id` 时第三方授权或平台 token exchange 明确失败。
 - 错误 `client_id` 不得换取其他租户、用户、身份或应用的 token。
+- `widget_data` exchange 向第三方后端签发 refresh token，且 refresh token 的授权范围不得超过初始 token。
+- 工作台浏览器收到的第三方授权和 refresh 响应均不得包含 refresh token。
 - 既有不使用第三方 Widget 的页面响应和应用入口 handoff 行为保持不变。
 
 ### 前端
@@ -301,8 +305,8 @@ Sealos 分配最终 HTTPS 域名后，同一 origin 用于应用入口；Webhook
 
 ## 实施顺序
 
-1. 在 `edu-plus-2` 创建并审核 Widget `client_id` 透传的 OpenSpec proposal。
-2. 实施并验证 EduPlus DTO、工作台请求、测试与接入文档的最小协议变更。
+1. 在 `edu-plus-2` 更新并审核现有 `add-third-party-widget-runtime-auth` OpenSpec change，补充 `client_id` 透传和服务端 refresh capability。
+2. 实施并验证 EduPlus DTO、工作台请求、Keycloak 扩展、测试与接入文档的最小协议变更。
 3. 重建 Node/NestJS 后端骨架、Prisma schema、迁移与基础测试。
 4. 完成 Webhook、租户订阅和凭证加密。
 5. 完成 Handoff 登录、OIDC 校验和服务端会话。
