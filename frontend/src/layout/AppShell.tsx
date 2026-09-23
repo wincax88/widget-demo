@@ -1,4 +1,4 @@
-import { DatabaseOutlined, FileDoneOutlined, HomeOutlined, LogoutOutlined } from '@ant-design/icons'
+import { DatabaseOutlined, FileDoneOutlined, LogoutOutlined, TeamOutlined, UserOutlined } from '@ant-design/icons'
 import { Button, Layout, Menu, Space, Typography } from 'antd'
 import { ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
@@ -10,16 +10,15 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const { session, logout } = useSession()
   const location = useLocation()
   if (!session?.authenticated) return null
-  const canSync = session.identity.type === 'TEACHER' || session.identity.type === 'STAFF'
-  const items = [
-    { key: '/', icon: <HomeOutlined />, label: <Link to="/">考试成绩</Link> },
-    ...(canSync
-      ? [
+  const identityType = session.identity.type
+  const items = identityType === 'STUDENT'
+    ? [{ key: '/results/me', icon: <UserOutlined />, label: <Link to="/results/me">我的成绩</Link> }]
+    : identityType === 'PARENT'
+      ? [{ key: '/results/children', icon: <TeamOutlined />, label: <Link to="/results/children">子女成绩</Link> }]
+      : [
           { key: '/exams', icon: <FileDoneOutlined />, label: <Link to="/exams">考试管理</Link> },
           { key: '/sync', icon: <DatabaseOutlined />, label: <Link to="/sync">主数据同步</Link> },
         ]
-      : []),
-  ]
 
   return (
     <Layout style={{ minHeight: '100vh', background: '#f3f6fb' }}>

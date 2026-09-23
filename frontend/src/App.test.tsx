@@ -29,6 +29,7 @@ describe('authenticated application shell', () => {
           identity: { id: 'teacher-1', type: 'TEACHER', name: 'Teacher' },
         }),
       )
+      .mockResolvedValueOnce(json([]))
 
     render(<App />, { wrapper: BrowserRouter })
 
@@ -74,10 +75,30 @@ describe('authenticated application shell', () => {
         tenant: { code: 'school-a', name: 'School A' },
         identity: { id: 'student-1', type: 'STUDENT', name: 'Student' },
       }),
-    )
+    ).mockResolvedValueOnce(json([]))
     render(<App />, { wrapper: BrowserRouter })
-    expect((await screen.findAllByText('考试成绩')).length).toBeGreaterThan(0)
+    expect(await screen.findByRole('link', { name: '我的成绩' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: '考试管理' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: '主数据同步' })).not.toBeInTheDocument()
     expect(screen.queryByText('同步基座主数据')).not.toBeInTheDocument()
+  })
+
+  it('routes parents to child results and hides student and teacher navigation', async () => {
+    window.history.replaceState({}, '', '/exams')
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json({
+        authenticated: true,
+        tenant: { code: 'school-a', name: 'School A' },
+        identity: { id: 'parent-1', type: 'PARENT', name: 'Parent' },
+      }))
+      .mockResolvedValueOnce(json([]))
+
+    render(<App />, { wrapper: BrowserRouter })
+
+    expect(await screen.findByRole('link', { name: '子女成绩' })).toBeInTheDocument()
+    expect(await screen.findByText('暂无可查看的关联子女')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: '我的成绩' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: '考试管理' })).not.toBeInTheDocument()
   })
 })
 

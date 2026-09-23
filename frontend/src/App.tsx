@@ -1,4 +1,4 @@
-import { Button, Card, Result, Spin, Typography } from 'antd'
+import { Button, Result, Spin } from 'antd'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import LaunchPage from './auth/LaunchPage'
 import { SessionProvider, useSession } from './auth/SessionProvider'
@@ -7,6 +7,8 @@ import SyncPage from './pages/SyncPage'
 import ExamListPage from './exams/ExamListPage'
 import ExamEditorPage from './exams/ExamEditorPage'
 import ScoreGridPage from './exams/ScoreGridPage'
+import MyResultsPage from './results/MyResultsPage'
+import ChildResultsPage from './results/ChildResultsPage'
 
 function ApplicationRoutes() {
   const { session, loading, error } = useSession()
@@ -33,27 +35,25 @@ function ApplicationRoutes() {
       </Routes>
     )
   }
-  const canSync = session.identity.type === 'TEACHER' || session.identity.type === 'STAFF'
+  const identityType = session.identity.type
+  const canManage = identityType === 'TEACHER' || identityType === 'STAFF'
+  const landingPath = identityType === 'STUDENT'
+    ? '/results/me'
+    : identityType === 'PARENT'
+      ? '/results/children'
+      : '/exams'
   return (
     <AppShell>
       <Routes>
-        <Route
-          path="/"
-          element={
-            <Card>
-              <Typography.Title level={2}>考试成绩</Typography.Title>
-              <Typography.Paragraph type="secondary">
-                当前身份：{session.identity.name ?? session.identity.id}
-              </Typography.Paragraph>
-            </Card>
-          }
-        />
-        <Route path="/launch/:tenantCode" element={<Navigate to="/" replace />} />
-        <Route path="/sync" element={canSync ? <SyncPage /> : <Navigate to="/" replace />} />
-        <Route path="/exams" element={canSync ? <ExamListPage /> : <Navigate to="/" replace />} />
-        <Route path="/exams/new" element={canSync ? <ExamEditorPage /> : <Navigate to="/" replace />} />
-        <Route path="/exams/:id/scores" element={canSync ? <ScoreGridPage /> : <Navigate to="/" replace />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="/" element={<Navigate to={landingPath} replace />} />
+        <Route path="/launch/:tenantCode" element={<Navigate to={landingPath} replace />} />
+        <Route path="/results/me" element={identityType === 'STUDENT' ? <MyResultsPage tenantCode={session.tenant.code} /> : <Navigate to={landingPath} replace />} />
+        <Route path="/results/children" element={identityType === 'PARENT' ? <ChildResultsPage tenantCode={session.tenant.code} /> : <Navigate to={landingPath} replace />} />
+        <Route path="/sync" element={canManage ? <SyncPage /> : <Navigate to={landingPath} replace />} />
+        <Route path="/exams" element={canManage ? <ExamListPage /> : <Navigate to={landingPath} replace />} />
+        <Route path="/exams/new" element={canManage ? <ExamEditorPage /> : <Navigate to={landingPath} replace />} />
+        <Route path="/exams/:id/scores" element={canManage ? <ScoreGridPage /> : <Navigate to={landingPath} replace />} />
+        <Route path="*" element={<Navigate to={landingPath} replace />} />
       </Routes>
     </AppShell>
   )
