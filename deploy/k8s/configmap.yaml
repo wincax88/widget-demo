@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: widget-demo
+  namespace: ns-gc40gxwh
+data:
+  PORT: "8080"
+  STATIC_ASSETS_DIR: /app/public
+  EDUPLUS_BASE_URL: https://eduplus-test.f123.pub
+  EDUPLUS_WORKBENCH_ORIGIN: https://eduplus-test.f123.pub
+  EDUPLUS_APP_CODE: demo-school
+  APP_ORIGIN: https://widget-demo.example.invalid

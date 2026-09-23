@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: widget-demo
+  namespace: ns-gc40gxwh
+spec:
+  selector: { app: widget-demo }
+  ports:
+    - { name: http, port: 80, targetPort: http }

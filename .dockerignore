@@ -1,0 +1,11 @@
+.git
+.github
+.worktrees
+**/node_modules
+**/dist
+**/coverage
+**/.env*
+!**/.env.example
+deploy/k8s/secret.yaml
+kubeconfig.yaml
+*.log
