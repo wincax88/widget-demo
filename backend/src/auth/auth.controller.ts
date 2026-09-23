@@ -11,6 +11,8 @@ import {
 } from '@nestjs/common'
 import { IsNotEmpty, IsOptional, IsString } from 'class-validator'
 import { Request, Response } from 'express'
+import { randomBytes } from 'node:crypto'
+import { CSRF_COOKIE } from '../security/csrf.guard'
 import { AuthService } from './auth.service'
 import { SESSION_COOKIE } from './session.guard'
 
@@ -35,6 +37,16 @@ const sessionCookieOptions = {
   path: '/',
 }
 
+const csrfCookieOptions = {
+  secure: true,
+  sameSite: 'lax' as const,
+  path: '/',
+}
+
+function setCsrfCookie(response: Response) {
+  response.cookie(CSRF_COOKIE, randomBytes(32).toString('base64url'), csrfCookieOptions)
+}
+
 @Controller()
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
@@ -43,6 +55,7 @@ export class AuthController {
   async handoff(@Body() body: HandoffRequest, @Res({ passthrough: true }) response: Response) {
     const session = await this.auth.acceptHandoff(body.tenant_code, body.code)
     response.cookie(SESSION_COOKIE, session.rawSessionToken, sessionCookieOptions)
+    setCsrfCookie(response)
     return { authenticated: true }
   }
 
@@ -70,6 +83,7 @@ export class AuthController {
     const session = await this.auth.acceptAuthorizationCode(tenantCode, code)
     response.clearCookie('widget_demo_oauth_state', sessionCookieOptions)
     response.cookie(SESSION_COOKIE, session.rawSessionToken, sessionCookieOptions)
+    setCsrfCookie(response)
     return response.redirect(303, '/')
   }
 
@@ -77,6 +91,7 @@ export class AuthController {
   async logout(@Req() request: Request, @Res({ passthrough: true }) response: Response) {
     await this.auth.revoke(request.cookies?.[SESSION_COOKIE])
     response.clearCookie(SESSION_COOKIE, sessionCookieOptions)
+    response.clearCookie(CSRF_COOKIE, csrfCookieOptions)
     return { authenticated: false }
   }
 

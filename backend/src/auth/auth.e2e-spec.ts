@@ -95,6 +95,11 @@ describeWithDatabase('application authentication', () => {
     expect(response.headers['set-cookie'][0]).toMatch(
       /^widget_demo_session=[^;]+; Path=\/; HttpOnly; Secure; SameSite=Lax/,
     )
+    expect(response.headers['set-cookie']).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/^widget_demo_csrf=[^;]+; Path=\/; Secure; SameSite=Lax/),
+      ]),
+    )
     expect(await prisma.appSession.count({ where: { tenant: { code: tenantCode } } })).toBe(1)
   })
 
