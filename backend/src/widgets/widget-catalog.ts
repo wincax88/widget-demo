@@ -69,10 +69,10 @@ export const EXAMINATION_WIDGETS = [
     fields: {
       itemsPath: 'rows',
       columns: [
-        { title: '学生', dataIndex: 'student_name' },
-        { title: '科目', dataIndex: 'subject' },
-        { title: '成绩', dataIndex: 'score' },
-        { title: '科目排名', dataIndex: 'rank' },
+        { key: 'student_name', title: '学生', dataIndex: 'student_name' },
+        { key: 'subject', title: '科目', dataIndex: 'subject' },
+        { key: 'score', title: '成绩', dataIndex: 'score' },
+        { key: 'rank', title: '科目排名', dataIndex: 'rank' },
       ],
     },
     default_layout: { w: 12, h: 8, minW: 8, minH: 5, maxW: 18, maxH: 16 },

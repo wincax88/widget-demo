@@ -24,6 +24,12 @@ describe('examination widget catalog', () => {
       'student,parent',
     ])
     expect(EXAMINATION_WIDGETS[1].fields).toMatchObject({ itemsPath: 'rows' })
+    expect(EXAMINATION_WIDGETS[1].fields.columns).toEqual([
+      { key: 'student_name', title: '学生', dataIndex: 'student_name' },
+      { key: 'subject', title: '科目', dataIndex: 'subject' },
+      { key: 'score', title: '成绩', dataIndex: 'score' },
+      { key: 'rank', title: '科目排名', dataIndex: 'rank' },
+    ])
     expect(EXAMINATION_WIDGETS[2].fields).toMatchObject({ itemsPath: 'items' })
 
     for (const widget of EXAMINATION_WIDGETS) {
