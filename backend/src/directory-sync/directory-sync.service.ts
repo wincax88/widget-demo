@@ -117,11 +117,15 @@ export class DirectorySyncService {
       for (const [entityType, type] of groups) {
         for (const record of records.get(entityType) ?? []) {
           const eduplusId = `${entityType}:${record.id}`
+          const eduplusUserId = type === PersonType.STUDENT
+            ? this.userId(record.fields.user_id)
+            : null
           await transaction.person.upsert({
             where: { tenantId_eduplusId: { tenantId, eduplusId } },
             create: {
               tenantId,
               eduplusId,
+              eduplusUserId,
               type,
               name: this.text(record.fields.name) ?? this.text(record.fields.username) ?? eduplusId,
               email: this.text(record.fields.email),
@@ -129,6 +133,7 @@ export class DirectorySyncService {
             },
             update: {
               type,
+              eduplusUserId,
               name: this.text(record.fields.name) ?? this.text(record.fields.username) ?? eduplusId,
               email: this.text(record.fields.email),
               active: this.isActive(record),
@@ -293,6 +298,12 @@ export class DirectorySyncService {
 
   private text(value: unknown) {
     return typeof value === 'string' && value.length > 0 ? value : null
+  }
+
+  private userId(value: unknown) {
+    if (typeof value === 'number') return Number.isSafeInteger(value) && value > 0 ? String(value) : null
+    if (typeof value === 'string') return /^\d+$/.test(value.trim()) ? value.trim() : null
+    return null
   }
 
   private isActive(record: MasterDataRecord, statusField = 'account_status') {

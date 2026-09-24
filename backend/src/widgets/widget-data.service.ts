@@ -34,15 +34,17 @@ export class WidgetDataService {
     this.validateBatch(input)
     const accessToken = bearerToken(authorization)
     const { tenant, identity } = await this.auth.verifyWidgetAccessToken(accessToken)
-    const person = await this.prisma.person.findFirst({
+    const people = await this.prisma.person.findMany({
       where: {
         tenantId: tenant.id,
-        eduplusId: identity.identityId,
+        eduplusUserId: identity.identityId,
         type: identity.identityType,
         active: true,
       },
       select: { id: true, name: true },
+      take: 2,
     })
+    const person = people.length === 1 ? people[0] : null
     const output: Record<string, WidgetResult> = {}
     if (!person) {
       for (const item of input.widgets) {

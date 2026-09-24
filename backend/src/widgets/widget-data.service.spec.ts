@@ -37,7 +37,10 @@ describe('WidgetDataService', () => {
       }),
     }
     const prisma = {
-      person: { findFirst: jest.fn().mockResolvedValue({ id: 'person-1', name: '学生甲' }) },
+      person: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'person-1', name: '学生甲' }),
+        findMany: jest.fn().mockResolvedValue([{ id: 'person-1', name: '学生甲' }]),
+      },
     }
     const results = {
       forStudent: jest.fn().mockResolvedValue(exams),
@@ -76,6 +79,35 @@ describe('WidgetDataService', () => {
       { exam_id: 'exam-2', title: '期末考试', exam_date: '2026-06-30T00:00:00.000Z' },
     ] } })
     expect(JSON.stringify(response)).not.toMatch(/mock|example/i)
+  })
+
+  it('binds a student widget token only to one active synchronized student with the same EduPlus user ID', async () => {
+    const { service, prisma } = create()
+    await service.batch({ request_id: 'identity-match', widgets: [item('exam-latest-summary')] }, 'Bearer signed-token')
+
+    expect(prisma.person.findMany).toHaveBeenCalledWith({
+      where: {
+        tenantId: 'tenant-local-1',
+        eduplusUserId: 'student-eui',
+        type: PersonType.STUDENT,
+        active: true,
+      },
+      select: { id: true, name: true },
+      take: 2,
+    })
+  })
+
+  it('does not bind an ambiguous synchronized identity', async () => {
+    const { service, prisma, results } = create()
+    prisma.person.findMany.mockResolvedValueOnce([
+      { id: 'person-1', name: '学生甲' },
+      { id: 'person-2', name: '学生乙' },
+    ])
+    const response = await service.batch({ request_id: 'identity-conflict', widgets: [item('exam-score-table')] }, 'Bearer signed-token')
+    expect(response.results['exam-score-table']).toMatchObject({
+      status: 'error', error: { code: 'IDENTITY_NOT_SYNCED' },
+    })
+    expect(results.forStudent).not.toHaveBeenCalled()
   })
 
   it('resolves only an active linked child for a parent request', async () => {
@@ -161,7 +193,7 @@ describe('WidgetDataService', () => {
 
   it('returns an explicit empty state when the synchronized identity or results are absent', async () => {
     const { service, prisma, results } = create()
-    prisma.person.findFirst.mockResolvedValueOnce(null)
+    prisma.person.findMany.mockResolvedValueOnce([])
     const missing = await service.batch({
       request_id: 'request-missing', widgets: [item('exam-latest-summary')],
     }, 'Bearer signed-token')
@@ -169,7 +201,7 @@ describe('WidgetDataService', () => {
       status: 'error', error: { code: 'IDENTITY_NOT_SYNCED' },
     })
 
-    prisma.person.findFirst.mockResolvedValueOnce({ id: 'person-1', name: '学生甲' })
+    prisma.person.findMany.mockResolvedValueOnce([{ id: 'person-1', name: '学生甲' }])
     results.forStudent.mockResolvedValueOnce([])
     const empty = await service.batch({
       request_id: 'request-empty', widgets: [item('exam-score-table')],

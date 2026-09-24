@@ -64,6 +64,7 @@ export class ResultsService {
       return {
         examId: exam.id,
         title: exam.title,
+        isDemo: exam.isDemo,
         type: exam.type,
         examDate: exam.examDate,
         total,

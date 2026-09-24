@@ -12,6 +12,7 @@ export interface SubjectResult {
 export interface ExamResult {
   examId: string
   title: string
+  isDemo?: boolean
   type: string
   examDate: string
   total: number

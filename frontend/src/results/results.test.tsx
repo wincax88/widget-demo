@@ -71,6 +71,13 @@ describe('student and parent result views', () => {
     expect(screen.getByRole('cell', { name: '英语' })).toBeInTheDocument()
   })
 
+  it('warns that a persisted demonstration exam is not a real grade', async () => {
+    mocks.mine.mockResolvedValue([{ ...results[0], title: '【演示】周测', isDemo: true }])
+    render(<MyResultsPage />)
+
+    expect(await screen.findByText('演示数据，非真实成绩')).toBeInTheDocument()
+  })
+
   it('renders an explicit empty state when there are no published results', async () => {
     mocks.mine.mockResolvedValue([])
     render(<MyResultsPage />)

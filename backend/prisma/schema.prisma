@@ -185,6 +185,7 @@ model Person {
   id                  String                  @id @default(uuid())
   tenantId            String                  @map("tenant_id")
   eduplusId           String                  @map("eduplus_id")
+  eduplusUserId       String?                 @map("eduplus_user_id")
   type                PersonType
   name                String
   email               String?
@@ -204,6 +205,7 @@ model Person {
 
   @@unique([tenantId, eduplusId])
   @@unique([tenantId, id])
+  @@index([tenantId, type, eduplusUserId])
   @@index([tenantId, type, active])
   @@map("people")
 }
@@ -311,6 +313,8 @@ model StudentClassRelation {
 model Exam {
   id          String        @id @default(uuid())
   tenantId    String        @map("tenant_id")
+  demoKey     String?       @map("demo_key")
+  isDemo      Boolean       @default(false) @map("is_demo")
   creatorId   String        @map("creator_id")
   classroomId String        @map("classroom_id")
   title       String
@@ -329,6 +333,7 @@ model Exam {
   imports     ScoreImport[]
 
   @@unique([tenantId, id])
+  @@unique([tenantId, demoKey])
   @@index([tenantId, status, examDate])
   @@index([tenantId, classroomId, examDate])
   @@map("exams")

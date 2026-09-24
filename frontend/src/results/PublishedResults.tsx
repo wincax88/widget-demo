@@ -1,4 +1,4 @@
-import { Space, Typography } from 'antd'
+import { Alert, Space, Typography } from 'antd'
 import { useEffect, useState } from 'react'
 import ResultSummary from './ResultSummary'
 import TrendChart from './TrendChart'
@@ -30,6 +30,7 @@ export default function PublishedResults({ results }: { results: ExamResult[] })
           ))}
         </select>
       </label>
+      {selected.isDemo && <Alert type="warning" showIcon message="演示数据，非真实成绩" description="排名仅针对演示组，不代表真实班级。" />}
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
         <ResultSummary result={selected} />
         <TrendChart results={results} />

@@ -5,7 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { CredentialKind, TenantStatus } from '@prisma/client'
+import { CredentialKind, PersonType, TenantStatus } from '@prisma/client'
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { CredentialCryptoService } from '../integration/crypto/credential-crypto.service'
 import { HandoffClient, OidcTokenResponse } from '../integration/eduplus/handoff-client'
@@ -224,7 +224,22 @@ export class AuthService {
       throw new UnauthorizedException('OIDC token context does not match the selected tenant')
     }
 
-    const person = await this.prisma.person.upsert({
+    const synchronizedStudents = identity.identityType === PersonType.STUDENT
+      ? await this.prisma.person.findMany({
+        where: {
+          tenantId: context.tenant.id,
+          type: PersonType.STUDENT,
+          eduplusUserId: identity.identityId,
+          active: true,
+        },
+        select: { id: true },
+        take: 2,
+      })
+      : []
+    if (synchronizedStudents.length > 1) {
+      throw new UnauthorizedException('Ambiguous student identity')
+    }
+    const person = synchronizedStudents[0] ?? await this.prisma.person.upsert({
       where: {
         tenantId_eduplusId: { tenantId: context.tenant.id, eduplusId: identity.sub },
       },
