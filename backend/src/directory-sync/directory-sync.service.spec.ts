@@ -64,21 +64,74 @@ describeWithDatabase('DirectorySyncService', () => {
     await prisma.$disconnect()
   })
 
-  it('follows every opaque cursor and upserts a repeated full snapshot', async () => {
+  it('imports base data, reports skipped relationships, and repeats idempotently', async () => {
     const session = { id: 'session-1', tenantId, identityId: 'teacher-1', identityType: PersonType.TEACHER }
 
-    await service.sync(session)
-    await service.sync(session)
+    const first = await service.sync(session)
+    const second = await service.sync(session)
 
     for (const entityType of Object.keys(firstPages)) {
       expect(calls).toContainEqual({ entityType, cursor: `${entityType}-next` })
     }
+    expect(first).toMatchObject({
+      status: 'partial',
+      counts: {
+        teacher: 1,
+        student: 1,
+        parent: 1,
+        class: 1,
+        course: 1,
+        skipped_teacher_teaching_assignment: 1,
+        skipped_student_class_relation: 1,
+        skipped_parent_student_relation: 1,
+      },
+    })
+    expect(second.status).toBe('partial')
+    const runs = await prisma.directorySyncRun.findMany({ where: { tenantId } })
+    expect(runs).toHaveLength(2)
+    expect(runs.map((run) => String(run.status))).toEqual(['PARTIAL', 'PARTIAL'])
     expect(await prisma.person.count({ where: { tenantId } })).toBe(3)
     expect(await prisma.classroom.count({ where: { tenantId } })).toBe(1)
     expect(await prisma.course.count({ where: { tenantId } })).toBe(1)
-    expect(await prisma.teachingAssignment.count({ where: { tenantId } })).toBe(1)
-    expect(await prisma.studentClassRelation.count({ where: { tenantId } })).toBe(1)
-    expect(await prisma.parentStudentRelation.count({ where: { tenantId } })).toBe(1)
+    expect(await prisma.teachingAssignment.count({ where: { tenantId } })).toBe(0)
+    expect(await prisma.studentClassRelation.count({ where: { tenantId } })).toBe(0)
+    expect(await prisma.parentStudentRelation.count({ where: { tenantId } })).toBe(0)
+  })
+
+  it('keeps distinct person types when EduPlus record IDs overlap and external IDs are null', async () => {
+    const otherTenant = await prisma.tenant.create({
+      data: { code: `sync-collision-${globalThis.crypto.randomUUID()}`, name: 'Collision School' },
+    })
+    const overlapping = ['teacher', 'student', 'parent']
+    const collisionClient = {
+      getPage: jest.fn(async (entityType: string) => ({
+        items: overlapping.includes(entityType)
+          ? [{ id: 42, entity_type: entityType, external_id: null, deleted: false, fields: { name: entityType } }]
+          : [],
+        next_cursor: null,
+      })),
+    }
+    const collisionService = new DirectorySyncService(prisma as never, collisionClient as never, auth as never)
+    try {
+      await collisionService.sync({
+        id: 'session-1',
+        tenantId: otherTenant.id,
+        identityId: 'teacher-1',
+        identityType: PersonType.TEACHER,
+      })
+      const people = await prisma.person.findMany({
+        where: { tenantId: otherTenant.id },
+        select: { eduplusId: true, type: true },
+      })
+      expect(people).toEqual(expect.arrayContaining([
+        { eduplusId: 'teacher:42', type: PersonType.TEACHER },
+        { eduplusId: 'student:42', type: PersonType.STUDENT },
+        { eduplusId: 'parent:42', type: PersonType.PARENT },
+      ]))
+      expect(people).toHaveLength(3)
+    } finally {
+      await prisma.tenant.delete({ where: { id: otherTenant.id } })
+    }
   })
 
   it('aborts an upstream 403 without widening the requested scope', async () => {

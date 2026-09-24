@@ -16,7 +16,7 @@ export type SessionResponse =
 
 export interface SyncRun {
   id: string
-  status: 'RUNNING' | 'SUCCEEDED' | 'FAILED'
+  status: 'RUNNING' | 'SUCCEEDED' | 'PARTIAL' | 'FAILED'
   counts?: Record<string, number>
   startedAt: string
   finishedAt?: string
@@ -66,7 +66,7 @@ export const api = {
     }),
   logout: () => request<{ authenticated: false }>('/auth/logout', { method: 'POST' }),
   startDirectorySync: () =>
-    request<{ run_id: string; status: string; counts: Record<string, number> }>(
+    request<{ run_id: string; status: 'partial' | 'succeeded'; counts: Record<string, number> }>(
       '/directory-sync',
       { method: 'POST' },
     ),

@@ -70,25 +70,22 @@ export class DirectorySyncService {
       await this.syncPeople(session.tenantId, records)
       await this.syncClasses(session.tenantId, records.get('class')!)
       await this.syncCourses(session.tenantId, records.get('course')!)
-      await this.syncAssignments(
-        session.tenantId,
-        records.get('teacher_teaching_assignment')!,
-      )
-      await this.syncStudentClasses(
-        session.tenantId,
-        records.get('student_class_relation')!,
-      )
-      await this.syncParentRelations(
-        session.tenantId,
-        records.get('parent_student_relation')!,
-      )
-
-      const counts = Object.fromEntries([...records].map(([key, value]) => [key, value.length]))
+      // Relationship references may be null without a unique external mapping; do not infer links.
+      const counts = {
+        teacher: records.get('teacher')!.length,
+        student: records.get('student')!.length,
+        parent: records.get('parent')!.length,
+        class: records.get('class')!.length,
+        course: records.get('course')!.length,
+        skipped_teacher_teaching_assignment: records.get('teacher_teaching_assignment')!.length,
+        skipped_student_class_relation: records.get('student_class_relation')!.length,
+        skipped_parent_student_relation: records.get('parent_student_relation')!.length,
+      }
       await this.prisma.directorySyncRun.update({
         where: { id: run.id },
-        data: { status: SyncStatus.SUCCEEDED, counts, finishedAt: new Date() },
+        data: { status: SyncStatus.PARTIAL, counts, finishedAt: new Date() },
       })
-      return { run_id: run.id, status: 'succeeded', counts }
+      return { run_id: run.id, status: 'partial', counts }
     } catch (error) {
       await this.prisma.directorySyncRun.update({
         where: { id: run.id },
@@ -119,7 +116,7 @@ export class DirectorySyncService {
     await this.prisma.$transaction(async (transaction) => {
       for (const [entityType, type] of groups) {
         for (const record of records.get(entityType) ?? []) {
-          const eduplusId = this.recordId(record)
+          const eduplusId = `${entityType}:${record.id}`
           await transaction.person.upsert({
             where: { tenantId_eduplusId: { tenantId, eduplusId } },
             create: {

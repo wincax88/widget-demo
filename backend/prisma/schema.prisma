@@ -28,6 +28,7 @@ enum PersonType {
 enum SyncStatus {
   RUNNING
   SUCCEEDED
+  PARTIAL
   FAILED
 }
 
