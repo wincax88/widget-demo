@@ -26,9 +26,10 @@ export function checkDemoStudents(students: DemoStudent[]): number {
   if (students.length === 0) throw new Error('no synchronized students')
   const userIds = new Set<string>()
   for (const student of students) {
-    if (!student.eduplusUserId?.trim()) throw new Error('missing EduPlus user ID')
-    if (userIds.has(student.eduplusUserId)) throw new Error('duplicate EduPlus user ID')
-    userIds.add(student.eduplusUserId)
+    const userId = student.eduplusUserId?.trim()
+    if (!userId) continue
+    if (userIds.has(userId)) throw new Error('duplicate EduPlus user ID')
+    userIds.add(userId)
   }
   return students.length
 }

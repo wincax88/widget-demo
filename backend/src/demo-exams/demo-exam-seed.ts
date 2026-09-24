@@ -19,7 +19,6 @@ export async function runDemoSeed(prisma: PrismaClient, tenantCode: string, appl
     where: {
       tenantId: tenant.id,
       type: PersonType.STUDENT,
-      active: true,
       eduplusId: { startsWith: 'student:' },
     },
     select: { id: true, eduplusId: true, eduplusUserId: true },

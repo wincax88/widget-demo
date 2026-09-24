@@ -49,12 +49,19 @@ describeWithDatabase('main09 demonstration exam persistence', () => {
     expect(await prisma.score.count({ where: { tenantId } })).toBe(18)
   })
 
-  it('stops before any new write when a synchronized student lacks a user ID', async () => {
-    await prisma.person.create({ data: {
+  it('includes synchronized students without accounts and inactive students in the full batch', async () => {
+    const unbound = await prisma.person.create({ data: {
       tenantId, eduplusId: 'student:103', type: PersonType.STUDENT, name: '缺少账号',
     } })
-    await expect(runDemoSeed(prisma, tenantCode, true)).rejects.toThrow('missing EduPlus user ID')
+    const inactive = await prisma.person.create({ data: {
+      tenantId, eduplusId: 'student:104', eduplusUserId: '904', type: PersonType.STUDENT,
+      name: '停用账号', active: false,
+    } })
+    expect(await runDemoSeed(prisma, tenantCode, false)).toMatchObject({ studentCount: 4, scoreCount: 36, applied: false })
+    expect(await runDemoSeed(prisma, tenantCode, true)).toMatchObject({ studentCount: 4, scoreCount: 36, applied: true })
     expect(await prisma.exam.count({ where: { tenantId } })).toBe(3)
-    expect(await prisma.score.count({ where: { tenantId } })).toBe(18)
+    expect(await prisma.score.count({ where: { tenantId } })).toBe(36)
+    expect(await prisma.score.count({ where: { tenantId, studentId: unbound.id } })).toBe(9)
+    expect(await prisma.score.count({ where: { tenantId, studentId: inactive.id } })).toBe(9)
   })
 })

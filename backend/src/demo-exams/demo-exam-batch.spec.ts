@@ -20,8 +20,9 @@ describe('main09 demonstration exam batch', () => {
     ])
   })
 
-  it('rejects missing and duplicate EduPlus user IDs before writing', () => {
-    expect(() => checkDemoStudents([{ ...students[0], eduplusUserId: null }])).toThrow('missing EduPlus user ID')
+  it('includes students without accounts, but rejects duplicate bound EduPlus user IDs', () => {
+    expect(checkDemoStudents([{ ...students[0], eduplusUserId: null }])).toBe(1)
+    expect(buildDemoScores([{ ...students[0], eduplusUserId: null }])).toHaveLength(9)
     expect(() => checkDemoStudents([students[0], { ...students[1], eduplusUserId: '901' }])).toThrow('duplicate EduPlus user ID')
     expect(() => checkDemoStudents([])).toThrow('no synchronized students')
     expect(checkDemoStudents(students)).toBe(2)
