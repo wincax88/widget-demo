@@ -96,13 +96,17 @@ export class SubscriptionsService {
       if (!oauth?.client_id || !oauth.client_secret) {
         throw new BadRequestException('subscription.created requires oauth_client credentials')
       }
+      const issuerUrl = issuerFromEndpoint(oauth.token_endpoint, 'token')
+        ?? issuerFromEndpoint(oauth.jwks_uri, 'certs')
+        ?? issuerFromEndpoint(oauth.authorization_endpoint, 'auth')
+        ?? oauth.auth_server_url
       const tenant = await transaction.tenant.upsert({
         where: { code: payload.tenant.code },
         create: {
           code: payload.tenant.code,
           eduplusTenantId: String(payload.tenant.id),
           name: payload.tenant.name,
-          issuerUrl: oauth.auth_server_url,
+          issuerUrl,
           authorizationEndpoint: oauth.authorization_endpoint,
           tokenEndpoint: oauth.token_endpoint,
           jwksUri: oauth.jwks_uri,
@@ -111,7 +115,7 @@ export class SubscriptionsService {
         update: {
           eduplusTenantId: String(payload.tenant.id),
           name: payload.tenant.name,
-          issuerUrl: oauth.auth_server_url,
+          issuerUrl,
           authorizationEndpoint: oauth.authorization_endpoint,
           tokenEndpoint: oauth.token_endpoint,
           jwksUri: oauth.jwks_uri,
@@ -187,4 +191,11 @@ export class SubscriptionsService {
       update: { clientId, ...encrypted, revokedAt: null },
     })
   }
+}
+
+function issuerFromEndpoint(endpoint: string | undefined, operation: 'token' | 'certs' | 'auth') {
+  if (!endpoint) return undefined
+  const suffix = `/protocol/openid-connect/${operation}`
+  const normalized = endpoint.replace(/\/$/, '')
+  return normalized.endsWith(suffix) ? normalized.slice(0, -suffix.length) : undefined
 }
