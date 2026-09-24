@@ -1,22 +1,19 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: widget-demo
+  name: network-fzotifeztnjm
   namespace: ns-gc40gxwh
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
-  ingressClassName: nginx
   tls:
-    - hosts: [widget-demo.example.invalid]
-      secretName: widget-demo-tls
+    - hosts: [xozqlkdilqkd.sealosgzg.site]
+      secretName: wildcard-cert
   rules:
-    - host: widget-demo.example.invalid
+    - host: xozqlkdilqkd.sealosgzg.site
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: widget-demo
-                port: { name: http }
+                name: widget-demo-zpnwdnljhyqs
+                port: { number: 80 }

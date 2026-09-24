@@ -1,0 +1,116 @@
+name: Build and deploy widget-demo to Sealos
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: widget-demo-sealos
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/wincax88/widget-demo
+  NAMESPACE: ns-gc40gxwh
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test -d test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://test:test@localhost:5432/test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            backend/package-lock.json
+      - name: Verify frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm test -- --run
+          npm run build
+      - name: Verify backend
+        working-directory: backend
+        run: |
+          npm ci
+          npx prisma generate
+          npx prisma migrate deploy
+          npm test -- --runInBand
+          npm run build
+
+  publish:
+    if: github.ref == 'refs/heads/main'
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ github.sha }}
+            ${{ env.IMAGE }}:latest
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    needs: publish
+    runs-on: ubuntu-latest
+    environment: sealos
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-kubectl@v4
+        with:
+          version: v1.29.15
+      - name: Configure cluster access
+        env:
+          SEALOS_KUBECONFIG: ${{ secrets.SEALOS_KUBECONFIG }}
+        run: |
+          test -n "$SEALOS_KUBECONFIG"
+          printf '%s' "$SEALOS_KUBECONFIG" > "$RUNNER_TEMP/kubeconfig"
+          chmod 600 "$RUNNER_TEMP/kubeconfig"
+          echo "KUBECONFIG=$RUNNER_TEMP/kubeconfig" >> "$GITHUB_ENV"
+      - name: Deploy application
+        run: |
+          kubectl -n "$NAMESPACE" get secret widget-demo >/dev/null
+          kubectl apply -f deploy/k8s/configmap.yaml
+          kubectl apply -f deploy/k8s/service.yaml
+          sed "s/replace-with-git-sha/${GITHUB_SHA}/g" deploy/k8s/deployment.yaml | kubectl apply -f -
+          kubectl -n "$NAMESPACE" rollout status deployment/widget-demo --timeout=5m
+      - name: Verify public endpoint
+        run: |
+          curl --fail --silent --show-error --retry 6 --retry-delay 5 https://xozqlkdilqkd.sealosgzg.site/api/health/ready
+          curl --fail --silent --show-error --output /dev/null https://xozqlkdilqkd.sealosgzg.site/
