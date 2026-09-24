@@ -17,6 +17,7 @@ temporary PostgreSQL 16 service; production uses the separate Sealos database.
 | Ingress | `network-fzotifeztnjm` (owned by Sealos App Launchpad) |
 | PostgreSQL cluster | `widget-demo-db` |
 | PostgreSQL service | `widget-demo-db-postgresql` (5432) |
+| Application database | `widget_demo` (created from `template0`) |
 
 The workflow applies the ConfigMap, Service, and Deployment manifests under
 `deploy/k8s`. It leaves the existing App Launchpad Ingress in place to avoid
@@ -38,6 +39,12 @@ Do not regenerate the latter two keys during ordinary deploys. Rotating the
 encryption key without migrating encrypted tenant credentials makes stored
 credentials unreadable. Never put these values in a workflow log or manifest
 committed to Git.
+
+Use the dedicated `widget_demo` database in `DATABASE_URL`, not the managed
+instance's built-in `postgres` database: the latter contains provider objects
+and Prisma rejects an initial migration against a nonempty schema. The migration
+init container runs as UID/GID 1000 (the image's `node` user) and declares its
+own memory budget; the namespace default of 64 MiB is too small for Prisma.
 
 The container registry image must be pullable by the cluster. Make the GHCR
 package public, or configure a long-lived, narrowly scoped `imagePullSecret`.
