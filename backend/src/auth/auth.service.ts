@@ -211,10 +211,15 @@ export class AuthService {
       jwksUri,
       clientId: context.credential.clientId!,
     })
+    const scopes = new Set(tokens.scope?.split(/\s+/).filter(Boolean) ?? [])
     if (
       identity.tenantId !== context.tenant.eduplusTenantId ||
       identity.clientId !== context.credential.clientId ||
-      (requireHandoff && identity.handoffType !== 'app_launch')
+      (requireHandoff && (
+        !scopes.has('openid') ||
+        scopes.has('widget.data.read') ||
+        (identity.handoffType !== undefined && identity.handoffType !== 'app_launch')
+      ))
     ) {
       throw new UnauthorizedException('OIDC token context does not match the selected tenant')
     }

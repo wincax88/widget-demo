@@ -25,6 +25,7 @@ describeWithDatabase('application authentication', () => {
     token_type: 'Bearer',
     expires_in: 900,
     refresh_expires_in: 1800,
+    scope: 'openid profile email',
   }
   const handoff = { exchange: jest.fn().mockResolvedValue(tokens) }
   const verifier = {
@@ -101,6 +102,62 @@ describeWithDatabase('application authentication', () => {
       ]),
     )
     expect(await prisma.appSession.count({ where: { tenant: { code: tenantCode } } })).toBe(1)
+  })
+
+  it('accepts an app launch token without a handoff_type claim', async () => {
+    const before = await prisma.appSession.count({ where: { tenant: { code: tenantCode } } })
+    verifier.verify.mockResolvedValueOnce({
+      sub: 'user-1',
+      tenantId: tenantExternalId,
+      identityId: 'teacher-1',
+      identityType: PersonType.TEACHER,
+      clientId: `client-${tenantCode}`,
+    })
+
+    await request(app.getHttpServer())
+      .post('/api/auth/handoff')
+      .send({ tenant_code: tenantCode, code: 'app-launch-without-type' })
+      .expect(201)
+
+    expect(await prisma.appSession.count({ where: { tenant: { code: tenantCode } } })).toBe(before + 1)
+  })
+
+  it('rejects widget_data tokens as application sessions', async () => {
+    const before = await prisma.appSession.count({ where: { tenant: { code: tenantCode } } })
+    verifier.verify.mockResolvedValueOnce({
+      sub: 'user-1',
+      tenantId: tenantExternalId,
+      identityId: 'teacher-1',
+      identityType: PersonType.TEACHER,
+      clientId: `client-${tenantCode}`,
+      handoffType: 'widget_data',
+    })
+
+    await request(app.getHttpServer())
+      .post('/api/auth/handoff')
+      .send({ tenant_code: tenantCode, code: 'widget-code' })
+      .expect(401)
+
+    expect(await prisma.appSession.count({ where: { tenant: { code: tenantCode } } })).toBe(before)
+  })
+
+  it('rejects a widget-only scope even when the handoff_type claim is missing', async () => {
+    const before = await prisma.appSession.count({ where: { tenant: { code: tenantCode } } })
+    handoff.exchange.mockResolvedValueOnce({ ...tokens, scope: 'widget.data.read' })
+    verifier.verify.mockResolvedValueOnce({
+      sub: 'user-1',
+      tenantId: tenantExternalId,
+      identityId: 'teacher-1',
+      identityType: PersonType.TEACHER,
+      clientId: `client-${tenantCode}`,
+    })
+
+    await request(app.getHttpServer())
+      .post('/api/auth/handoff')
+      .send({ tenant_code: tenantCode, code: 'widget-scope-without-type' })
+      .expect(401)
+
+    expect(await prisma.appSession.count({ where: { tenant: { code: tenantCode } } })).toBe(before)
   })
 
   it('creates no session when verified tenant claims do not match', async () => {
