@@ -8,5 +8,5 @@ data:
   STATIC_ASSETS_DIR: /app/public
   EDUPLUS_BASE_URL: https://eduplus-test.f123.pub
   EDUPLUS_WORKBENCH_ORIGIN: https://eduplus-test.f123.pub
-  EDUPLUS_APP_CODE: demo-school
+  EDUPLUS_APP_CODE: widget-demo
   APP_ORIGIN: https://xozqlkdilqkd.sealosgzg.site
