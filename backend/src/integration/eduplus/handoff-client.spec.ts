@@ -1,5 +1,7 @@
 import { createHmac } from 'node:crypto'
+import { BadGatewayException, Logger } from '@nestjs/common'
 import { HandoffClient } from './handoff-client'
+import { redactSecrets } from '../../security/security.module'
 
 describe('HandoffClient', () => {
   afterEach(() => jest.restoreAllMocks())
@@ -47,6 +49,96 @@ describe('HandoffClient', () => {
         }),
       }),
     )
+  })
+
+  it.each([
+    {
+      name: 'missing refresh token',
+      payload: { access_token: 'access-canary', expires_in: 300, token_type: 'Bearer' },
+      invalidFields: ['refresh_token'],
+      fieldTypes: { access_token: 'string', refresh_token: 'undefined', expires_in: 'number' },
+      shape: 'object',
+      wrapped: false,
+    },
+    {
+      name: 'incorrectly typed expiry',
+      payload: { access_token: 'access-canary', refresh_token: 'refresh-canary', expires_in: '300' },
+      invalidFields: ['expires_in'],
+      fieldTypes: { access_token: 'string', refresh_token: 'string', expires_in: 'string' },
+      shape: 'object',
+      wrapped: false,
+    },
+    {
+      name: 'data-wrapped token response',
+      payload: {
+        code: 0,
+        data: { access_token: 'access-canary', refresh_token: 'refresh-canary', expires_in: 300 },
+        'arbitrary-key-canary': 'arbitrary-value-canary',
+      },
+      invalidFields: ['access_token', 'refresh_token', 'expires_in'],
+      fieldTypes: { access_token: 'undefined', refresh_token: 'undefined', expires_in: 'undefined' },
+      shape: 'object',
+      wrapped: true,
+    },
+    {
+      name: 'null response',
+      payload: null,
+      invalidFields: ['access_token', 'refresh_token', 'expires_in'],
+      fieldTypes: { access_token: 'undefined', refresh_token: 'undefined', expires_in: 'undefined' },
+      shape: 'null',
+      wrapped: false,
+    },
+    {
+      name: 'array response',
+      payload: ['arbitrary-value-canary'],
+      invalidFields: ['access_token', 'refresh_token', 'expires_in'],
+      fieldTypes: { access_token: 'undefined', refresh_token: 'undefined', expires_in: 'undefined' },
+      shape: 'array',
+      wrapped: false,
+    },
+  ])('diagnoses $name without exposing upstream values', async (scenario) => {
+    const warning = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined)
+    jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
+      JSON.stringify(scenario.payload),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    ))
+
+    const error = await new HandoffClient().exchange({
+      baseUrl: 'https://eduplus.example.com', clientId: 'oc_xxx',
+      clientSecret: 'client-secret-canary', code: 'handoff-code-canary',
+    }).catch((value: unknown) => value)
+
+    expect(error).toBeInstanceOf(BadGatewayException)
+    const body = (error as BadGatewayException).getResponse()
+    const diagnostic = {
+      code: 'EDUPLUS_TOKEN_RESPONSE_INCOMPLETE',
+      upstream_status: 200,
+      invalid_fields: scenario.invalidFields,
+      field_types: {
+        access_token_type: scenario.fieldTypes.access_token,
+        refresh_token_type: scenario.fieldTypes.refresh_token,
+        expires_in_type: scenario.fieldTypes.expires_in,
+      },
+      response_shape: scenario.shape,
+      has_wrapped_token_fields: scenario.wrapped,
+    }
+    expect(body).toMatchObject({
+      message: 'EduPlus returned an incomplete token response',
+      error: 'Bad Gateway', statusCode: 502,
+      ...diagnostic,
+    })
+    expect(redactSecrets(body)).toMatchObject(diagnostic)
+    expect(warning).toHaveBeenCalledWith({
+      event: 'eduplus.handoff.token_response_incomplete', ...diagnostic,
+    })
+    expect(redactSecrets(warning.mock.calls[0][0])).toMatchObject(diagnostic)
+    const emitted = JSON.stringify({ body, warnings: warning.mock.calls })
+    for (const secret of [
+      'access-canary', 'refresh-canary', 'client-secret-canary',
+      'handoff-code-canary', 'arbitrary-key-canary', 'arbitrary-value-canary',
+    ]) {
+      expect(emitted).not.toContain(secret)
+    }
   })
 
   it('uses the tenant token endpoint for a server-side refresh grant', async () => {
