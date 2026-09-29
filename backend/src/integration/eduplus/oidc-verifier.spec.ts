@@ -1,5 +1,6 @@
 import { createServer, Server } from 'node:http'
 import { AddressInfo } from 'node:net'
+import { Logger } from '@nestjs/common'
 import { exportJWK, generateKeyPair, SignJWT } from 'jose'
 import { OidcVerifier } from './oidc-verifier'
 
@@ -34,7 +35,7 @@ describe('OidcVerifier', () => {
     })
       .setProtectedHeader({ alg: 'RS256', kid: 'test-key' })
       .setIssuer(issuer)
-      .setAudience('eduplus-app')
+      .setAudience('client-1')
       .setSubject('keycloak-user')
       .setIssuedAt()
       .setExpirationTime('5m')
@@ -52,6 +53,57 @@ describe('OidcVerifier', () => {
     await expect(
       new OidcVerifier().verify(token, { issuer, clientId: 'other-client', jwksUri }),
     ).rejects.toThrow('OIDC token validation failed')
+  })
+
+  it('requires the login client audience and logs the received audience without the token', async () => {
+    const issuer = 'https://issuer.example.com/realms/eduplus'
+    const context = { issuer, clientId: 'client-1', jwksUri }
+    const sign = (audience?: string | string[]) => {
+      let builder = new SignJWT({
+        azp: 'client-1', tid: 42, eui: 'user-42', eit: 'tch',
+      })
+        .setProtectedHeader({ alg: 'RS256', kid: 'test-key' })
+        .setIssuer(issuer)
+        .setSubject('keycloak-user')
+        .setIssuedAt()
+        .setExpirationTime('5m')
+      if (audience !== undefined) builder = builder.setAudience(audience)
+      return builder.sign(privateKey)
+    }
+    const successLog = jest.spyOn(Logger.prototype, 'log').mockImplementation()
+    const failureLog = jest.spyOn(Logger.prototype, 'warn').mockImplementation()
+
+    try {
+      const validToken = await sign(['shared-api', 'client-1'])
+      await expect(new OidcVerifier().verify(validToken, context)).resolves.toMatchObject({
+        clientId: 'client-1',
+      })
+      expect(successLog).toHaveBeenCalledWith(expect.objectContaining({
+        event: 'eduplus.oidc.app_login_token_verified',
+        expected_aud: 'client-1',
+        received_aud: ['shared-api', 'client-1'],
+        aud_verified: true,
+      }))
+
+      const wrongAudienceToken = await sign('other-\napi')
+      await expect(new OidcVerifier().verify(wrongAudienceToken, context))
+        .rejects.toThrow('OIDC token validation failed')
+      expect(failureLog).toHaveBeenCalledWith(expect.objectContaining({
+        event: 'eduplus.oidc.app_login_token_validation_failed',
+        expected_aud: 'client-1',
+        received_aud: ['other-api'],
+        aud_verified: false,
+      }))
+
+      await expect(new OidcVerifier().verify(await sign(), context))
+        .rejects.toThrow('OIDC token validation failed')
+      const logged = JSON.stringify([...successLog.mock.calls, ...failureLog.mock.calls])
+      expect(logged).not.toContain(validToken)
+      expect(logged).not.toContain(wrongAudienceToken)
+    } finally {
+      successLog.mockRestore()
+      failureLog.mockRestore()
+    }
   })
 
   it('validates the complete widget-data audience and authorization context', async () => {

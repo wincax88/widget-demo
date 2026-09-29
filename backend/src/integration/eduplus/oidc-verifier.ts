@@ -1,6 +1,6 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common'
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common'
 import { PersonType } from '@prisma/client'
-import { createRemoteJWKSet, jwtVerify, JWTVerifyGetKey } from 'jose'
+import { createRemoteJWKSet, decodeJwt, jwtVerify, JWTVerifyGetKey } from 'jose'
 
 export interface VerifiedIdentity {
   sub: string
@@ -39,13 +39,19 @@ interface VerifyWidgetContext extends VerifyContext {
 
 @Injectable()
 export class OidcVerifier {
+  private readonly logger = new Logger(OidcVerifier.name)
   private readonly keySets = new Map<string, JWTVerifyGetKey>()
 
   async verify(token: string, context: VerifyContext): Promise<VerifiedIdentity> {
+    let receivedAudience = decodeAudience(token)
+    let audienceVerified = false
     try {
       const { payload } = await jwtVerify(token, this.keySet(context.jwksUri), {
         issuer: context.issuer,
+        audience: context.clientId,
       })
+      receivedAudience = normalizeAudience(payload.aud)
+      audienceVerified = true
       const identityType = this.toPersonType(payload.identity_type ?? payload.eit)
       if (!identityType) {
         throw new Error('Unsupported identity type')
@@ -56,6 +62,13 @@ export class OidcVerifier {
       if (!payload.sub || !tenantId || !identityId || clientId !== context.clientId) {
         throw new Error('Required identity claims are missing')
       }
+      this.logger.log({
+        event: 'eduplus.oidc.app_login_token_verified',
+        expected_aud: context.clientId,
+        received_aud: receivedAudience,
+        aud_verified: true,
+        azp: clientId,
+      })
       return {
         sub: payload.sub,
         tenantId,
@@ -67,7 +80,14 @@ export class OidcVerifier {
         handoffType:
           typeof payload.handoff_type === 'string' ? payload.handoff_type : undefined,
       }
-    } catch {
+    } catch (error) {
+      this.logger.warn({
+        event: 'eduplus.oidc.app_login_token_validation_failed',
+        expected_aud: context.clientId,
+        received_aud: receivedAudience,
+        aud_verified: audienceVerified,
+        error_code: safeErrorCode(error),
+      })
       throw new UnauthorizedException('OIDC token validation failed')
     }
   }
@@ -149,6 +169,37 @@ export class OidcVerifier {
     }
     return aliases[normalized] ?? null
   }
+}
+
+const MAX_AUDIENCE_VALUES = 8
+const MAX_AUDIENCE_LENGTH = 200
+
+function decodeAudience(token: string) {
+  try {
+    return normalizeAudience(decodeJwt(token).aud)
+  } catch {
+    return []
+  }
+}
+
+function normalizeAudience(value: unknown) {
+  const values = typeof value === 'string'
+    ? [value]
+    : Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === 'string')
+      : []
+  return values
+    .slice(0, MAX_AUDIENCE_VALUES)
+    .map((item) => item.replace(/[\u0000-\u001f\u007f-\u009f]/g, '').slice(0, MAX_AUDIENCE_LENGTH))
+    .filter(Boolean)
+}
+
+function safeErrorCode(error: unknown) {
+  if (!error || typeof error !== 'object') return 'UNKNOWN'
+  const candidate = 'code' in error && typeof error.code === 'string'
+    ? error.code
+    : error.constructor?.name
+  return String(candidate ?? 'UNKNOWN').replace(/[^A-Za-z0-9_.-]/g, '').slice(0, 100) || 'UNKNOWN'
 }
 
 function hasExactAudience(value: unknown, expected: string) {
