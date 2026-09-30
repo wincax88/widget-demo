@@ -35,11 +35,26 @@ access to this namespace. It is never committed to Git. The Kubernetes Secret
 - `EDUPLUS_WEBHOOK_SECRET`: a persistent webhook signing secret also configured
   for this application in EduPlus.
 
-To enable **AI 对话测试**, add `AI_CENTER_BASE_URL` (the AI Center deployment
-origin, without a path) and `AI_CENTER_API_KEY` to this server-side Secret.
+To enable **AI 对话测试**, add repository Actions secrets `AI_CENTER_BASE_URL`
+(the AI Center deployment origin, without a path) and `AI_CENTER_API_KEY` under
+**Settings → Secrets and variables → Actions**. Before each deployment, the
+workflow merges only these two values into the existing Kubernetes Secret
+`widget-demo`, preserving the database, encryption, webhook, and other settings.
+It uses a private temporary patch file, removes it even on failure, and does not
+print the values. The kubeconfig must permit patching this Secret.
+
+If both Actions secrets are unset, synchronization is skipped and existing
+cluster settings are preserved, so direct configuration in Sealos also works.
+If only one is set, deployment fails before updating the Secret; configure both
+to continue. Changing a GitHub secret alone does not trigger deployment: run
+the workflow manually or push to `main` to synchronize it.
+
 `AI_CENTER_MODEL` is optional; omit it to use the API Key's authorized default
-model. `AI_CENTER_TIMEOUT_MS` defaults to `60000`. The Deployment already reads
-these settings through `envFrom`; roll out the application after changing them.
+model. `AI_CENTER_TIMEOUT_MS` defaults to `60000`. Set these optional values
+directly in the Kubernetes Secret. The Deployment reads the settings through
+`envFrom`; the workflow always restarts the Deployment and waits for rollout,
+including manual reruns using the same image, so updated secrets take effect.
+Restart the application after any direct changes in Sealos.
 Never add the API Key to a Vite frontend variable. Missing AI settings leave the
 other features available and show a configuration warning on `/ai-chat`.
 See [AI Center dialogue testing](ai-center-chat.md) for API authorization and

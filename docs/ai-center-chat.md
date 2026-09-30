@@ -6,7 +6,10 @@
 
 1. 在 AI Center 管理端填写应用名称并生成 API Key，安全保存只展示一次的明文。
 2. 为该 Key 启用 `ai_center:chat:invoke`，授权目标模型；模型留空时还须配置默认模型。
-3. 在 NestJS 后端环境或 Sealos `widget-demo` Secret 中配置以下变量，再重启后端。
+3. 本地开发在 NestJS 后端环境中配置以下变量，再重启后端。Sealos 部署时，推荐在 GitHub 仓库 **Settings → Secrets and variables → Actions → Repository secrets** 添加 `AI_CENTER_BASE_URL` 和 `AI_CENTER_API_KEY`。
+4. 推送到 `main` 或手动运行 Sealos 部署工作流；工作流会将两个值合并到现有 Sealos `widget-demo` Secret，保留数据库、加密和 Webhook 等其他配置，并滚动重启应用。仅修改 GitHub Secret 不会自动触发部署。
+
+两个 GitHub Secrets 都未配置时，工作流跳过同步，保留 Sealos 中直接配置的值；只配置一项时，工作流停止部署并提示补齐。临时配置文件仅在 Runner 中创建，结束时清理，日志不输出值。`AI_CENTER_MODEL` 和 `AI_CENTER_TIMEOUT_MS` 可选，仍在 Sealos Secret 中配置，直接修改后需重启应用。
 
 | 变量 | 说明 |
 | --- | --- |

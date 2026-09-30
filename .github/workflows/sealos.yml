@@ -103,12 +103,42 @@ jobs:
           printf '%s' "$SEALOS_KUBECONFIG" > "$RUNNER_TEMP/kubeconfig"
           chmod 600 "$RUNNER_TEMP/kubeconfig"
           echo "KUBECONFIG=$RUNNER_TEMP/kubeconfig" >> "$GITHUB_ENV"
+      - name: Sync AI Center secrets
+        env:
+          AI_CENTER_BASE_URL: ${{ secrets.AI_CENTER_BASE_URL }}
+          AI_CENTER_API_KEY: ${{ secrets.AI_CENTER_API_KEY }}
+        run: |
+          umask 077
+          patch_file="$RUNNER_TEMP/ai-center-secret-patch.json"
+          trap 'rm -f "$patch_file"' EXIT
+          python3 <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          values = {
+              name: os.environ.get(name, '').strip()
+              for name in ('AI_CENTER_BASE_URL', 'AI_CENTER_API_KEY')
+          }
+          if not any(values.values()):
+              print('AI Center secrets are unset; preserving existing cluster configuration.')
+              raise SystemExit(0)
+          if not all(values.values()):
+              raise SystemExit('Configure both AI_CENTER_BASE_URL and AI_CENTER_API_KEY in Actions secrets.')
+
+          patch_path = Path(os.environ['RUNNER_TEMP']) / 'ai-center-secret-patch.json'
+          patch_path.write_text(json.dumps({'stringData': values}), encoding='utf-8')
+          PY
+          if [ -f "$patch_file" ]; then
+            kubectl -n "$NAMESPACE" patch secret widget-demo --type=merge --patch-file "$patch_file"
+          fi
       - name: Deploy application
         run: |
           kubectl -n "$NAMESPACE" get secret widget-demo >/dev/null
           kubectl apply -f deploy/k8s/configmap.yaml
           kubectl apply -f deploy/k8s/service.yaml
           sed "s/replace-with-git-sha/${GITHUB_SHA}/g" deploy/k8s/deployment.yaml | kubectl apply -f -
+          kubectl -n "$NAMESPACE" rollout restart deployment/widget-demo
           kubectl -n "$NAMESPACE" rollout status deployment/widget-demo --timeout=5m
       - name: Verify public endpoint
         run: |
