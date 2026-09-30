@@ -52,8 +52,12 @@ the workflow manually or push to `main` to synchronize it.
 `AI_CENTER_MODEL` is optional; omit it to use the API Key's authorized default
 model. `AI_CENTER_TIMEOUT_MS` defaults to `60000`. Set these optional values
 directly in the Kubernetes Secret. The Deployment reads the settings through
-`envFrom`; the workflow always restarts the Deployment and waits for rollout,
-including manual reruns using the same image, so updated secrets take effect.
+`envFrom`; each workflow run sets a new Pod template rollout annotation and waits
+for rollout, including manual reruns using the same image, so updated secrets take
+effect with one deployment update. The workflow also prefers nodes hosting a
+healthy, non-terminating instance of this app to reuse cached image layers. This
+is a scheduling preference, so other nodes remain eligible; the workflow does
+not hard-code a node or change cluster-wide settings.
 Restart the application after any direct changes in Sealos.
 Never add the API Key to a Vite frontend variable. Missing AI settings leave the
 other features available and show a configuration warning on `/ai-chat`.
@@ -75,6 +79,13 @@ The container registry image must be pullable by the cluster. Make the GHCR
 package public, or configure a long-lived, narrowly scoped `imagePullSecret`.
 
 ## Checks
+
+For rollout failures, manually run **Diagnose Sealos rollout** in Actions. It
+reads only this app's resource status, related Pod warnings, and startup logs;
+known Secret values and database passwords are redacted. Normal Pod events are
+reported only as fixed preparation counts, helping distinguish a stalled image
+pull from migration or application startup failures. The diagnostic workflow
+does not change cluster resources.
 
 After an Actions run succeeds:
 
