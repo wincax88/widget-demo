@@ -22,8 +22,15 @@ export interface SyncRun {
   finishedAt?: string
 }
 
+export interface ApiErrorDetails {
+  code?: string
+  request_id?: string
+  upstream_status?: number
+  retryable?: boolean
+}
+
 export class ApiError extends Error {
-  constructor(readonly status: number, message: string) {
+  constructor(readonly status: number, message: string, readonly details: ApiErrorDetails = {}) {
     super(message)
   }
 }
@@ -52,7 +59,13 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
       typeof body === 'object' && body && 'message' in body
         ? String((body as { message: unknown }).message)
         : `Request failed with status ${response.status}`
-    throw new ApiError(response.status, message)
+    const fields = typeof body === 'object' && body ? body as Record<string, unknown> : {}
+    const details: ApiErrorDetails = {}
+    if (typeof fields.code === 'string') details.code = fields.code
+    if (typeof fields.request_id === 'string') details.request_id = fields.request_id
+    if (typeof fields.upstream_status === 'number') details.upstream_status = fields.upstream_status
+    if (typeof fields.retryable === 'boolean') details.retryable = fields.retryable
+    throw new ApiError(response.status, message, details)
   }
   return body as T
 }

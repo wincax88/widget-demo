@@ -35,6 +35,16 @@ access to this namespace. It is never committed to Git. The Kubernetes Secret
 - `EDUPLUS_WEBHOOK_SECRET`: a persistent webhook signing secret also configured
   for this application in EduPlus.
 
+To enable **AI 对话测试**, add `AI_CENTER_BASE_URL` (the AI Center deployment
+origin, without a path) and `AI_CENTER_API_KEY` to this server-side Secret.
+`AI_CENTER_MODEL` is optional; omit it to use the API Key's authorized default
+model. `AI_CENTER_TIMEOUT_MS` defaults to `60000`. The Deployment already reads
+these settings through `envFrom`; roll out the application after changing them.
+Never add the API Key to a Vite frontend variable. Missing AI settings leave the
+other features available and show a configuration warning on `/ai-chat`.
+See [AI Center dialogue testing](ai-center-chat.md) for API authorization and
+usage instructions. The example Secret contains no actual AI Center credentials.
+
 Do not regenerate the latter two keys during ordinary deploys. Rotating the
 encryption key without migrating encrypted tenant credentials makes stored
 credentials unreadable. Never put these values in a workflow log or manifest

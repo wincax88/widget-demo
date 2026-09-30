@@ -56,6 +56,32 @@ describe('authenticated application shell', () => {
     expect(await screen.findByRole('link', { name: '使用 EduPlus 登录' })).toBeInTheDocument()
   })
 
+  it.each(['STAFF', 'TEACHER', 'STUDENT', 'PARENT'])('allows %s to open AI dialogue', async (type) => {
+    window.history.replaceState({}, '', '/ai-chat')
+    vi.mocked(fetch).mockResolvedValueOnce(json({
+      authenticated: true,
+      tenant: { code: 'school-a', name: 'School A' },
+      identity: { id: 'identity-1', type, name: 'User' },
+    })).mockImplementation(async (url) => json(url === '/api/ai-center/status'
+      ? { configured: true, defaultModel: 'default-model' } : []))
+
+    render(<App />, { wrapper: BrowserRouter })
+
+    expect(await screen.findByRole('link', { name: 'AI 对话测试' })).toHaveAttribute('href', '/ai-chat')
+    expect(await screen.findByRole('textbox', { name: '问题' })).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/ai-chat')
+  })
+
+  it('denies AI dialogue without an application session', async () => {
+    window.history.replaceState({}, '', '/ai-chat')
+    vi.mocked(fetch).mockResolvedValue(json({ authenticated: false }))
+    render(<App />, { wrapper: BrowserRouter })
+
+    expect(await screen.findByRole('link', { name: '使用 EduPlus 登录' })).toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: '问题' })).not.toBeInTheDocument()
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
   it('allows staff to open synchronization while hiding it from students', async () => {
     window.history.replaceState({}, '', '/sync')
     vi.mocked(fetch).mockResolvedValueOnce(

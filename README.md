@@ -2,6 +2,11 @@
 
 A standalone demo app that simulates a third-party application integrating with the EduPlus platform. It tests three core integration flows:
 
+The current NestJS + React application also includes **AI 对话测试** at `/ai-chat`.
+See [AI Center setup and usage](docs/ai-center-chat.md) for server-side API Key
+configuration and [current Sealos deployment](docs/sealos-deployment.md) for the
+current runtime. The older Spring Boot walkthrough below describes the original demo.
+
 1. **Webhook Reception** - Receives and verifies subscription lifecycle webhooks from EduPlus
 2. **API HMAC Signing** - Signs and sends API calls to EduPlus `/v1/open/*` endpoints
 3. **OAuth Token Exchange** - Uses OAuth `client_credentials` from webhooks to obtain access tokens

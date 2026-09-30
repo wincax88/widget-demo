@@ -9,6 +9,7 @@ import ExamEditorPage from './exams/ExamEditorPage'
 import ScoreGridPage from './exams/ScoreGridPage'
 import MyResultsPage from './results/MyResultsPage'
 import ChildResultsPage from './results/ChildResultsPage'
+import AiChatPage from './ai-center/AiChatPage'
 
 function ApplicationRoutes() {
   const { session, loading, error } = useSession()
@@ -47,6 +48,7 @@ function ApplicationRoutes() {
       <Routes>
         <Route path="/" element={<Navigate to={landingPath} replace />} />
         <Route path="/launch/:tenantCode" element={<Navigate to={landingPath} replace />} />
+        <Route path="/ai-chat" element={<AiChatPage />} />
         <Route path="/results/me" element={identityType === 'STUDENT' ? <MyResultsPage tenantCode={session.tenant.code} /> : <Navigate to={landingPath} replace />} />
         <Route path="/results/children" element={identityType === 'PARENT' ? <ChildResultsPage tenantCode={session.tenant.code} /> : <Navigate to={landingPath} replace />} />
         <Route path="/sync" element={canManage ? <SyncPage /> : <Navigate to={landingPath} replace />} />

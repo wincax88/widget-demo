@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common'
 import { ConfigModule } from '@nestjs/config'
+import { AiCenterModule } from './ai-center/ai-center.module'
 import { AuthModule } from './auth/auth.module'
 import { validateEnv } from './config/env.schema'
 import { DirectorySyncModule } from './directory-sync/directory-sync.module'
@@ -18,6 +19,7 @@ import { WidgetsModule } from './widgets/widgets.module'
     PrismaModule,
     SubscriptionsModule,
     AuthModule,
+    AiCenterModule,
     DirectorySyncModule,
     ExamsModule,
     ResultsModule,

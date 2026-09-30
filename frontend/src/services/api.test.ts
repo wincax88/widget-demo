@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { request } from './api'
+import { ApiError, request } from './api'
 
 describe('API request security', () => {
   afterEach(() => {
@@ -25,5 +25,18 @@ describe('API request security', () => {
     )
     const options = fetchMock.mock.calls[0][1] as RequestInit
     expect(new Headers(options.headers).get('x-csrf-token')).toBe('csrf-token')
+  })
+
+  it('preserves safe diagnostic fields on a failed request', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      message: 'AI Center 调用额度已用尽', code: 'quota_exceeded', request_id: 'request-1',
+      upstream_status: 429, retryable: false, api_key: 'secret-canary',
+    }), { status: 429, headers: { 'content-type': 'application/json' } })))
+    const error = await request('/ai-center/chat', { method: 'POST', body: '{}' }).catch((value: unknown) => value)
+    expect(error).toBeInstanceOf(ApiError)
+    expect(error).toMatchObject({ status: 429, details: {
+      code: 'quota_exceeded', request_id: 'request-1', upstream_status: 429, retryable: false,
+    } })
+    expect(JSON.stringify(error)).not.toContain('secret-canary')
   })
 })
