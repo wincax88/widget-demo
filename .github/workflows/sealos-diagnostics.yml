@@ -42,7 +42,7 @@ jobs:
               )
               if result.returncode:
                   if 'masks' in globals():
-                      emit('Cannot read ' + ' '.join(args[:3]) + ': ' + result.stderr)
+                      emit('Cannot read ' + ' '.join(args[:3]) + ': exit code ' + str(result.returncode))
                   return None
               return result.stdout
 
@@ -75,11 +75,20 @@ jobs:
               emit('Pod ' + pod['metadata']['name'] + ' on ' + pod.get('spec', {}).get('nodeName', 'unknown') + ': ' + json.dumps(pod.get('status', {})))
           if not secret_text:
               raise SystemExit('Secret redaction unavailable; skipping logs and events.')
-          events = read('get', 'events', '-o', 'json')
-          if events:
-              for event in json.loads(events)['items']:
-                  if event.get('involvedObject', {}).get('name', '').startswith('widget-demo'):
-                      emit('Event ' + event.get('lastTimestamp', '') + ': ' + event.get('reason', '') + ': ' + event.get('message', ''))
+          for pod in pods:
+              name = pod['metadata']['name']
+              events = read('get', 'events', '--field-selector', 'involvedObject.kind=Pod,involvedObject.name=' + name, '-o', 'json')
+              milestones = {reason: 0 for reason in ('Scheduled', 'Pulling', 'Pulled', 'Created', 'Started')}
+              if events:
+                  for event in json.loads(events)['items']:
+                      if event.get('involvedObject', {}).get('name') != name:
+                          continue
+                      if event.get('type') == 'Warning':
+                          emit('Warning: ' + event.get('reason', '') + ': ' + event.get('message', ''))
+                      elif event.get('reason') in milestones:
+                          milestones[event['reason']] += 1
+              # Normal events contribute fixed labels and counts only; no message text.
+              emit('Pod preparation milestones: ' + json.dumps(milestones))
           for pod in pods[:3]:
               for container in ('migrate', 'widget-demo'):
                   for previous in (False, True):
