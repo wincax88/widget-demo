@@ -1,0 +1,90 @@
+name: Diagnose Sealos rollout
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: sealos
+    env:
+      NAMESPACE: ns-gc40gxwh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-kubectl@v4
+        with:
+          version: v1.29.15
+      - name: Configure cluster access
+        env:
+          SEALOS_KUBECONFIG: ${{ secrets.SEALOS_KUBECONFIG }}
+        run: |
+          test -n "$SEALOS_KUBECONFIG"
+          printf '%s' "$SEALOS_KUBECONFIG" > "$RUNNER_TEMP/kubeconfig"
+          chmod 600 "$RUNNER_TEMP/kubeconfig"
+          echo "KUBECONFIG=$RUNNER_TEMP/kubeconfig" >> "$GITHUB_ENV"
+      - name: Inspect rollout and sanitized startup logs
+        run: |
+          python3 <<'PY'
+          import base64
+          import json
+          import os
+          import subprocess
+          from urllib.parse import urlsplit, unquote
+
+          def read(*args):
+              result = subprocess.run(
+                  ['kubectl', '-n', os.environ['NAMESPACE'], *args],
+                  capture_output=True, text=True, timeout=20,
+              )
+              if result.returncode:
+                  return None
+              return result.stdout
+
+          # Read credentials only into memory for redaction; never print Secret objects.
+          secret_text = read('get', 'secret', 'widget-demo', '-o', 'json')
+          masks = set()
+          if secret_text:
+              for value in json.loads(secret_text).get('data', {}).values():
+                  masks.add(value)
+                  decoded = base64.b64decode(value).decode('utf-8', errors='replace')
+                  if decoded:
+                      masks.add(decoded)
+                      parsed = urlsplit(decoded)
+                      if parsed.password:
+                          masks.update((parsed.password, unquote(parsed.password)))
+
+          def emit(text):
+              for value in sorted(masks, key=len, reverse=True):
+                  text = text.replace(value, '[REDACTED]')
+              print(text)
+
+          # Without redaction data, print only resource states and omit logs/events.
+          deployment = read('get', 'deployment', 'widget-demo', '-o', 'json')
+          if deployment:
+              emit('Deployment status: ' + json.dumps(json.loads(deployment).get('status', {})))
+          pod_text = read('get', 'pods', '-l', 'app=widget-demo', '-o', 'json')
+          pods = json.loads(pod_text)['items'] if pod_text else []
+          pods.sort(key=lambda pod: pod['metadata']['creationTimestamp'], reverse=True)
+          for pod in pods:
+              emit('Pod ' + pod['metadata']['name'] + ': ' + json.dumps(pod.get('status', {})))
+          if not secret_text:
+              raise SystemExit('Secret redaction unavailable; skipping logs and events.')
+          events = read('get', 'events', '--field-selector', 'type=Warning', '-o', 'json')
+          if events:
+              for event in json.loads(events)['items']:
+                  if event.get('involvedObject', {}).get('name', '').startswith('widget-demo'):
+                      emit('Warning: ' + event.get('reason', '') + ': ' + event.get('message', ''))
+          for pod in pods[:3]:
+              for container in ('migrate', 'widget-demo'):
+                  for previous in (False, True):
+                      args = ['logs', pod['metadata']['name'], '-c', container, '--tail=100']
+                      if previous:
+                          args.append('--previous')
+                      logs = read(*args)
+                      if logs:
+                          emit('Logs ' + pod['metadata']['name'] + '/' + container + (' (previous)' if previous else '') + ':\n' + logs)
+          PY
