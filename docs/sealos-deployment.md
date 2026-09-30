@@ -58,6 +58,10 @@ effect with one deployment update. The workflow also prefers nodes hosting a
 healthy, non-terminating instance of this app to reuse cached image layers. This
 is a scheduling preference, so other nodes remain eligible; the workflow does
 not hard-code a node or change cluster-wide settings.
+The workflow converts the repository manifest with `kubectl create --dry-run=client`
+before applying it, then verifies that both the app and migration container use
+the current commit's image. This prevents a healthy old image from being mistaken
+for a successful release.
 Restart the application after any direct changes in Sealos.
 Never add the API Key to a Vite frontend variable. Missing AI settings leave the
 other features available and show a configuration warning on `/ai-chat`.

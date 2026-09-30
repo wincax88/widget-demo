@@ -144,9 +144,11 @@ jobs:
           trap 'rm -f "$pods_file"' EXIT
           kubectl -n "$NAMESPACE" get pods -l app=widget-demo -o json > "$pods_file"
           sed "s/replace-with-git-sha/${GITHUB_SHA}/g" deploy/k8s/deployment.yaml \
-            | kubectl apply --dry-run=client -f - -o json \
+            | kubectl create --dry-run=client -f - -o json \
             | python3 deploy/prepare_deployment.py "$pods_file" "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
             | kubectl apply -f -
+          kubectl -n "$NAMESPACE" get deployment widget-demo -o json \
+            | python3 deploy/prepare_deployment.py --verify-image "$IMAGE:$GITHUB_SHA"
           kubectl -n "$NAMESPACE" rollout status deployment/widget-demo --timeout=5m
       - name: Verify public endpoint
         run: |

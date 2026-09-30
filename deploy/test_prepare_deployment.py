@@ -1,6 +1,6 @@
 import unittest
 
-from prepare_deployment import prepare_deployment
+from prepare_deployment import prepare_deployment, verify_deployment_images
 
 
 def manifest():
@@ -52,6 +52,25 @@ class DeploymentPreparationTests(unittest.TestCase):
         value['spec']['template']['spec']['affinity'] = {'podAntiAffinity': {'preferredDuringSchedulingIgnoredDuringExecution': []}}
         result = prepare_deployment(value, {'items': [pod('healthy-node', True)]}, '100-1')
         self.assertIn('podAntiAffinity', result['spec']['template']['spec']['affinity'])
+
+    def test_rejects_previous_application_image(self):
+        value = manifest()
+        value['spec']['template']['spec']['initContainers'] = [{'name': 'migrate', 'image': 'expected'}]
+        with self.assertRaises(ValueError):
+            verify_deployment_images(value, 'expected')
+
+    def test_rejects_previous_migration_image(self):
+        value = manifest()
+        value['spec']['template']['spec']['containers'][0]['image'] = 'expected'
+        value['spec']['template']['spec']['initContainers'] = [{'name': 'migrate', 'image': 'old'}]
+        with self.assertRaises(ValueError):
+            verify_deployment_images(value, 'expected')
+
+    def test_accepts_matching_application_and_migration_images(self):
+        value = manifest()
+        value['spec']['template']['spec']['containers'][0]['image'] = 'expected'
+        value['spec']['template']['spec']['initContainers'] = [{'name': 'migrate', 'image': 'expected'}]
+        verify_deployment_images(value, 'expected')
 
 
 if __name__ == '__main__':

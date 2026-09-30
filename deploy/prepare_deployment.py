@@ -5,6 +5,16 @@ import sys
 from pathlib import Path
 
 
+def verify_deployment_images(manifest, expected_image):
+    spec = manifest['spec']['template']['spec']
+    images = {
+        container['name']: container.get('image')
+        for container in spec.get('containers', []) + spec.get('initContainers', [])
+    }
+    if any(images.get(name) != expected_image for name in ('widget-demo', 'migrate')):
+        raise ValueError('Deployment application and migration images must match the target revision')
+
+
 def prepare_deployment(manifest, pods, rollout_id):
     template = manifest['spec']['template']
     annotations = template.setdefault('metadata', {}).setdefault('annotations', {})
@@ -29,5 +39,9 @@ def prepare_deployment(manifest, pods, rollout_id):
 
 
 if __name__ == '__main__':
-    current_pods = json.loads(Path(sys.argv[1]).read_text(encoding='utf-8'))
-    json.dump(prepare_deployment(json.load(sys.stdin), current_pods, sys.argv[2]), sys.stdout)
+    if sys.argv[1] == '--verify-image':
+        verify_deployment_images(json.load(sys.stdin), sys.argv[2])
+        print('Deployment application and migration images match the target revision.')
+    else:
+        current_pods = json.loads(Path(sys.argv[1]).read_text(encoding='utf-8'))
+        json.dump(prepare_deployment(json.load(sys.stdin), current_pods, sys.argv[2]), sys.stdout)
