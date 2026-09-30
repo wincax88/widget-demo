@@ -41,6 +41,8 @@ jobs:
                   capture_output=True, text=True, timeout=20,
               )
               if result.returncode:
+                  if 'masks' in globals():
+                      emit('Cannot read ' + ' '.join(args[:3]) + ': ' + result.stderr)
                   return None
               return result.stdout
 
@@ -70,14 +72,14 @@ jobs:
           pods = json.loads(pod_text)['items'] if pod_text else []
           pods.sort(key=lambda pod: pod['metadata']['creationTimestamp'], reverse=True)
           for pod in pods:
-              emit('Pod ' + pod['metadata']['name'] + ': ' + json.dumps(pod.get('status', {})))
+              emit('Pod ' + pod['metadata']['name'] + ' on ' + pod.get('spec', {}).get('nodeName', 'unknown') + ': ' + json.dumps(pod.get('status', {})))
           if not secret_text:
               raise SystemExit('Secret redaction unavailable; skipping logs and events.')
-          events = read('get', 'events', '--field-selector', 'type=Warning', '-o', 'json')
+          events = read('get', 'events', '-o', 'json')
           if events:
               for event in json.loads(events)['items']:
                   if event.get('involvedObject', {}).get('name', '').startswith('widget-demo'):
-                      emit('Warning: ' + event.get('reason', '') + ': ' + event.get('message', ''))
+                      emit('Event ' + event.get('lastTimestamp', '') + ': ' + event.get('reason', '') + ': ' + event.get('message', ''))
           for pod in pods[:3]:
               for container in ('migrate', 'widget-demo'):
                   for previous in (False, True):
