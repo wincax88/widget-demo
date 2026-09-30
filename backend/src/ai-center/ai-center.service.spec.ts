@@ -85,6 +85,52 @@ describe('AI Center server-side Chat client', () => {
     expect(JSON.stringify(error.getResponse())).not.toMatch(/private|key-canary/)
   })
 
+  it.each([
+    [502, 'provider_authentication_failed', false, '模型服务商鉴权失败'],
+    [502, 'provider_auth_failed', false, '模型服务商鉴权失败'],
+    [502, 'provider_invalid_request', false, '模型服务商拒绝了请求'],
+    [502, 'provider_malformed_response', false, '模型服务商响应格式无效'],
+    [502, 'provider_upstream_error', true, '模型服务商暂时异常'],
+    [502, 'upstream_http_error', true, '模型服务商暂时异常'],
+    [504, 'provider_timeout', true, '模型服务商响应超时'],
+    [504, 'upstream_timeout', true, '模型服务商响应超时'],
+    [503, 'provider_unavailable', true, '模型服务商暂不可用'],
+    [503, 'provider_not_ready', true, '模型服务商尚未就绪'],
+    [503, 'model_not_ready', true, '模型尚未就绪'],
+    [403, 'provider_disabled', false, '模型服务商已停用'],
+    [403, 'model_disabled', false, '模型已停用'],
+    [429, 'provider_rate_limited', true, '模型服务商限流'],
+    [403, 'model_not_authorized', false, '调用未获授权'],
+  ])('parses the standard flat OpenAPI error %s/%s without exposing upstream details', async (status, code, retryable, message) => {
+    const fetchMock = jest.spyOn(globalThis, 'fetch').mockResolvedValue(json({
+      code, message: 'key-canary private-canary', request_id: 'flat-error-1', retryable,
+      http_status: status, details: 'private-canary', descriptor: { next_action: 'key-canary' },
+    }, status))
+    const error = await errorOf(service().chat(input))
+    expect(error.getStatus()).toBe(status)
+    expect(error.getResponse()).toMatchObject({ code, request_id: 'flat-error-1', retryable, upstream_status: status })
+    expect((error.getResponse() as { message: string }).message).toContain(message)
+    expect(JSON.stringify(error.getResponse())).not.toMatch(/key-canary|private-canary|descriptor|details/)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not relay unknown flat codes, text or unsafe request IDs', async () => {
+    jest.spyOn(globalThis, 'fetch').mockResolvedValue(json({
+      code: 'private-canary', message: 'key-canary', request_id: 'key-canary', retryable: true,
+    }, 502))
+    const error = await errorOf(service().chat(input))
+    expect(error.getResponse()).toMatchObject({ code: 'upstream_error', retryable: true })
+    expect(JSON.stringify(error.getResponse())).not.toMatch(/private-canary|key-canary/)
+  })
+
+  it('uses the nested request ID for a compatible error envelope', async () => {
+    jest.spyOn(globalThis, 'fetch').mockResolvedValue(json({
+      error: { code: 'api_key_invalid', request_id: 'nested-error-1', retryable: false },
+    }, 401))
+    const error = await errorOf(service().chat(input))
+    expect(error.getResponse()).toMatchObject({ code: 'api_key_invalid', request_id: 'nested-error-1', retryable: false })
+  })
+
   it.each([null, { choices: [] }, { choices: [{ message: { content: 123 } }] }])('rejects malformed success payload %s', async (payload) => {
     jest.spyOn(globalThis, 'fetch').mockResolvedValue(json(payload))
     const error = await errorOf(service().chat(input))

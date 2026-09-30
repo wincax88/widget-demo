@@ -63,10 +63,15 @@ messages 支持 `system`、`user`、`assistant` 的纯文本正文。`model` 可
 | 上游 401 | 检查 Key 的格式和生命周期；对前端返回 502，区别于 widget-demo 登录失效。 |
 | 上游 403 | 检查 Key 状态、`ai_center:chat:invoke`、模型授权与模型启用状态。 |
 | 上游 429 | 检查额度、并发数；避免高频重复发送。 |
+| 上游 502：`provider_auth_failed`、`provider_authentication_failed` | AI Center 到模型服务商的鉴权失败；检查 AI Center 中的服务商密钥、上游授权，在模型测试页验证。 |
+| 上游 502：`provider_invalid_request`、`provider_malformed_response` | 检查 AI Center 模型参数、能力和适配器请求映射或响应兼容性。 |
+| 上游 502：`provider_upstream_error`、`upstream_http_error` | 根据可重试提示稍后重试；持续失败时按请求 ID 查询 AI Center 调用日志。 |
 | 上游 503、网络失败或超时 | 查看错误码和请求 ID；只有可重试提示明确时才稍后重试。后端本地超时返回 504。 |
 | widget-demo 401 | 重新从 EduPlus 登录；不是 AI Center Key 错误。 |
 
 错误消息经过固定映射，不包含原始上游错误正文或凭据。使用页面请求 ID 与 AI Center 服务端日志关联排查。当前应用共用一份服务端 Key，其额度和模型授权适用于所有登录用户。
+
+标准 OpenAPI 错误字段位于响应顶层，例如 `{"code":"provider_upstream_error","request_id":"request-example","retryable":true}`；后端也兼容嵌套的 `error` 对象。仅返回白名单错误码和固定中文提示，不透传上游 `message`、`details` 或 `descriptor`。上游 504 保留为 504。
 
 ## 验证
 
